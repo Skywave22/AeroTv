@@ -12,7 +12,7 @@ import 'skystream_provider.dart';
 /// Contract verified 2026-11-05 against `akashdh11/skystream@master` and
 /// `skystream-tools/DEVELOPER.md`. Plugins are callback-style JS with a
 /// `plugin.json` manifest; repositories are `repo.json` indexes.
-class SkyStreamAdapter implements EcosystemAdapter {
+class SkyStreamAdapter implements EcosystemAdapter, RepositorySource {
   SkyStreamAdapter({
     required JsPluginStore store,
     JsSandboxPolicy policy = const JsSandboxPolicy(),
@@ -304,6 +304,7 @@ class SkyStreamAdapter implements EcosystemAdapter {
   }
 
   /// Reads a SkyStream `repo.json` index.
+  @override
   Future<Result<List<SourceRef>>> fetchRepository(String url) async {
     final res = await _mgr.fetchJson(url);
     if (res.isErr) return Err(res.errorOrNull!);

@@ -208,7 +208,7 @@ globalThis.__vegaCatalog = __vegaCatalog;
 }
 
 /// Vega ecosystem adapter.
-class VegaAdapter implements EcosystemAdapter {
+class VegaAdapter implements EcosystemAdapter, RepositorySource {
   VegaAdapter({
     required JsPluginStore store,
     JsSandboxPolicy policy = const JsSandboxPolicy(),
@@ -467,6 +467,7 @@ class VegaAdapter implements EcosystemAdapter {
   }
 
   /// Reads a Vega `manifest.json` — a JSON **array** of provider entries.
+  @override
   Future<Result<List<SourceRef>>> fetchRepository(String url) async {
     final manifestUrl = url.endsWith('.json') ? url : '${url.replaceAll(RegExp(r'/$'), '')}/manifest.json';
     final res = await _mgr.fetchJson(manifestUrl);

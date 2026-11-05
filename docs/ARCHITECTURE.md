@@ -162,3 +162,25 @@ browse is listed with an explanation instead of appearing and showing nothing.
 
 See **[specs/VERIFIED_CONTRACTS.md](specs/VERIFIED_CONTRACTS.md)** for the
 contracts themselves and how to re-verify them.
+
+### Optional repository support
+
+`RepositorySource` is a separate interface, not a member of `EcosystemAdapter`:
+
+```dart
+abstract interface class RepositorySource {
+  Future<Result<List<SourceRef>>> fetchRepository(String url);
+}
+```
+
+Adding it to the base interface would have broken every
+`implements EcosystemAdapter` — Stremio, CloudStream and the resolver test fakes
+— none of which have a repository concept. As an opt-in interface the manager
+simply asks `adapter is RepositorySource`, and single-URL ecosystems are
+untouched.
+
+One subtlety the tests pin down: **a repository entry is not identified by URL
+alone.** Every Vega provider in a repository shares that repository's source
+URL and is distinguished by `extra['value']`. The manager therefore keys
+"already installed" on `url|value`, otherwise installing one Vega provider would
+mark the entire repository as installed.

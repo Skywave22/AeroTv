@@ -32,6 +32,7 @@ abstract class EcosystemAdapter {
   /// Fetches the manifest/bundle, validates it, and persists it.
   Future<Result<InstalledSource>> install(SourceRef ref);
 
+
   Future<void> uninstall(String sourceId);
 
   /// Re-reads the remote manifest and reports whether a newer version exists.
@@ -55,4 +56,21 @@ abstract class EcosystemAdapter {
 
   /// Releases native/JS resources. Called on app shutdown and on uninstall.
   Future<void> dispose();
+}
+
+/// Optional capability: this ecosystem distributes plugins through a
+/// repository index that can be listed before anything is installed.
+///
+/// Kept separate from [EcosystemAdapter] on purpose. Adding members to the base
+/// interface would break every `implements EcosystemAdapter` — including
+/// single-URL ecosystems that have no notion of a repository. Managers detect
+/// support with `adapter is RepositorySource`.
+abstract interface class RepositorySource {
+  /// Reads a repository index and returns the plugins it offers, installing
+  /// nothing.
+  ///
+  /// Formats differ per ecosystem: SkyStream `repo.json`, Vega an array
+  /// `manifest.json`, Nuvio an object `manifest.json` listing scrapers. Each
+  /// adapter parses its own; the manager UI stays generic.
+  Future<Result<List<SourceRef>>> fetchRepository(String url);
 }

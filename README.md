@@ -42,6 +42,25 @@ Six tabs, each with one job:
 | **Providers** | The plugin directory: what is installed, what it can do |
 | **Settings** | Player, UI, backup, and the Extensions manager |
 
+### Adding plugins
+
+The Extensions manager speaks each ecosystem's own distribution format, the way
+SkyStream does — paste a repository index, see every plugin it offers, and
+install the ones you want:
+
+| Ecosystem | Index | Shape |
+|---|---|---|
+| SkyStream | `repo.json` | object with a `plugins` array |
+| Vega | `manifest.json` | **array** of providers |
+| Nuvio | `manifest.json` | **object** with a `scrapers` array |
+| Stremio | `manifest.json` | single add-on, installed directly |
+
+Adapters that support this implement the optional `RepositorySource` interface;
+the manager detects it with `adapter is RepositorySource` rather than hardcoding
+ecosystem names. Repository entries preserve their raw manifest data, hash pins
+where the ecosystem provides them, and reject unsafe paths (Vega's `path` is
+checked for directory traversal before any file is fetched).
+
 Browse reproduces SkyStream's dashboard rule for every ecosystem that can
 supply a home feed: a `"Trending"` category becomes the hero carousel and is
 removed from the rows below; if a plugin has no `"Trending"`, its first category
@@ -69,7 +88,7 @@ reason rather than silently missing.
 - **Android TV** — leanback launcher, banner, D-pad focus with per-row memory,
   overscan margin, remote key mapping.
 
-**167 automated tests** cover the core models, ranking, resolver, Stremio
+**188 automated tests** cover the core models, ranking, resolver, Stremio
 protocol, database (including the v1→v2 migration), backup, the JS sandbox
 policy, adaptive TV layout and the app's widget tree. `dart analyze
 --fatal-infos` is clean across the whole workspace.

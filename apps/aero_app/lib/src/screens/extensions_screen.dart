@@ -181,11 +181,26 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
               'Android-only. See docs/specs/cloudstream.md.',
       };
 
+  /// Whether this ecosystem is normally distributed as a repository of many
+  /// plugins rather than one URL at a time.
+  bool get _repoFirst =>
+      ref.read(adapterRegistryProvider).forEcosystem(_selected)
+          is RepositorySource;
+
+  String get _repoHint => switch (_selected) {
+        Ecosystem.skystream => 'https://example.com/repo.json',
+        Ecosystem.vega => 'https://example.com/manifest.json',
+        Ecosystem.nuvio => 'https://example.com/manifest.json',
+        _ => 'https://example.com/manifest.json',
+      };
+
   Future<void> _showAddDialog(BuildContext context) async {
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
     String? error;
     var busy = false;
+    // JS ecosystems ship repositories, so default to that mode for them.
+    var asRepo = _repoFirst;
 
     await showDialog<void>(
       context: context,
@@ -200,8 +215,36 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (_repoFirst) ...[
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(
+                          value: true,
+                          label: Text('Repository'),
+                          icon: Icon(Icons.folder_open_rounded, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: false,
+                          label: Text('Single plugin'),
+                          icon: Icon(Icons.extension_rounded, size: 16),
+                        ),
+                      ],
+                      selected: {asRepo},
+                      showSelectedIcon: false,
+                      onSelectionChanged: busy
+                          ? null
+                          : (v) => setDialogState(() {
+                                asRepo = v.first;
+                                error = null;
+                              }),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   Text(
-                    _emptyHint(_selected),
+                    asRepo
+                        ? 'Paste the repository index. You will be able to pick '
+                            'which plugins to install.'
+                        : _emptyHint(_selected),
                     style: Theme.of(dialogContext).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 14),
@@ -210,10 +253,8 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                     autofocus: true,
                     keyboardType: TextInputType.url,
                     decoration: InputDecoration(
-                      labelText: 'URL',
-                      hintText: _selected == Ecosystem.stremio
-                          ? 'https://example.com/manifest.json'
-                          : 'https://example.com/repo.json',
+                      labelText: asRepo ? 'Repository URL' : 'Plugin URL',
+                      hintText: asRepo ? _repoHint : _emptyHint(_selected),
                       errorText: error,
                     ),
                     validator: (v) =>
@@ -257,11 +298,37 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                         busy = true;
                         error = null;
                       });
-                      final adapter =
-                          ref.read(adapterRegistryProvider).forEcosystem(_selected);
-                      final res = await adapter!.install(SourceRef(
+                      final url = controller.text.trim();
+                      final adapter = ref
+                          .read(adapterRegistryProvider)
+                          .forEcosystem(_selected);
+                      if (adapter == null) return;
+
+                      if (asRepo && adapter is RepositorySource) {
+                        final res = await (adapter as RepositorySource)
+                            .fetchRepository(url);
+                        if (!dialogContext.mounted) return;
+                        if (res.isErr) {
+                          setDialogState(() {
+                            busy = false;
+                            error = res.errorOrNull;
+                          });
+                          return;
+                        }
+                        Navigator.of(dialogContext).pop();
+                        if (mounted) {
+                          await _showRepoPicker(
+                            this.context,
+                            res.valueOrNull!,
+                            url,
+                          );
+                        }
+                        return;
+                      }
+
+                      final res = await adapter.install(SourceRef(
                         ecosystem: _selected,
-                        url: controller.text.trim(),
+                        url: url,
                       ));
                       if (!dialogContext.mounted) return;
                       if (res.isOk) {
@@ -282,13 +349,221 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                         });
                       }
                     },
-              child: const Text('Install'),
+              child: Text(asRepo ? 'Browse' : 'Install'),
             ),
           ],
         ),
       ),
     );
     controller.dispose();
+  }
+
+  /// Identity of a repository entry.
+  ///
+  /// URL alone is not enough: every Vega provider in a repository shares the
+  /// repository's source URL and is distinguished by `extra['value']`. Using
+  /// the URL only would mark the whole repository "already installed" after
+  /// installing a single provider.
+  static String _refKey(SourceRef r) =>
+      '${r.url}|${r.extra['value'] ?? r.extra['id'] ?? r.name ?? ''}';
+
+  static String _installedKey(InstalledSource s) =>
+      '${s.url}|${s.config['value'] ?? s.config['id'] ?? s.name}';
+
+  /// Repository browser: list every plugin the index offers and let the user
+  /// install a subset. This mirrors how SkyStream and Vega distribute plugins.
+  Future<void> _showRepoPicker(
+    BuildContext context,
+    List<SourceRef> refs,
+    String repoUrl,
+  ) async {
+    final installed =
+        ref.read(installedSourcesProvider).valueOrNull ?? const [];
+    final installedKeys = installed.map(_installedKey).toSet();
+
+    // Pre-select everything not already installed.
+    final selected = <int>{
+      for (var i = 0; i < refs.length; i++)
+        if (!installedKeys.contains(_refKey(refs[i]))) i,
+    };
+    var busy = false;
+    var done = 0;
+    String? error;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final theme = Theme.of(dialogContext);
+          return AlertDialog(
+            title: Text('${refs.length} plugins found'),
+            content: SizedBox(
+              width: 480,
+              height: 420,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    repoUrl,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: AeroColors.textTertiary),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: busy
+                            ? null
+                            : () => setDialogState(() {
+                                  selected
+                                    ..clear()
+                                    ..addAll(
+                                      List.generate(refs.length, (i) => i),
+                                    );
+                                }),
+                        child: const Text('Select all'),
+                      ),
+                      TextButton(
+                        onPressed: busy
+                            ? null
+                            : () => setDialogState(selected.clear),
+                        child: const Text('Clear'),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${selected.length} selected',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 12),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: refs.length,
+                      itemBuilder: (_, i) {
+                        final r = refs[i];
+                        final already = installedKeys.contains(_refKey(r));
+                        return CheckboxListTile(
+                          value: selected.contains(i),
+                          dense: true,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          onChanged: busy
+                              ? null
+                              : (v) => setDialogState(() {
+                                    if (v ?? false) {
+                                      selected.add(i);
+                                    } else {
+                                      selected.remove(i);
+                                    }
+                                  }),
+                          title: Text(
+                            r.name ?? r.url.split('/').last,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            [
+                              if (r.version != null) 'v${r.version}',
+                              if (already) 'already installed',
+                            ].join(' · '),
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  if (busy) ...[
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      minHeight: 2,
+                      value: selected.isEmpty
+                          ? null
+                          : done / selected.length.clamp(1, 1 << 30),
+                    ),
+                    const SizedBox(height: 6),
+                    Text('Installing $done of ${selected.length}…',
+                        style: theme.textTheme.bodySmall),
+                  ],
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(error!,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.error)),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed:
+                    busy ? null : () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: busy || selected.isEmpty
+                    ? null
+                    : () async {
+                        setDialogState(() {
+                          busy = true;
+                          error = null;
+                          done = 0;
+                        });
+                        final adapter = ref
+                            .read(adapterRegistryProvider)
+                            .forEcosystem(_selected);
+                        final failures = <String>[];
+                        // Sequential: each install downloads and boots code,
+                        // and this box has very little memory.
+                        for (final i in selected.toList()..sort()) {
+                          final res = await adapter!.install(
+                            SourceRef(
+                              ecosystem: _selected,
+                              url: refs[i].url,
+                              repoId: repoUrl,
+                              name: refs[i].name,
+                              version: refs[i].version,
+                              expectedSha256: refs[i].expectedSha256,
+                              extra: refs[i].extra,
+                            ),
+                          );
+                          if (res.isErr) {
+                            failures.add(
+                              '${refs[i].name ?? refs[i].url}: '
+                              '${res.errorOrNull}',
+                            );
+                          }
+                          if (!dialogContext.mounted) return;
+                          setDialogState(() => done++);
+                        }
+                        ref.invalidate(installedSourcesProvider);
+                        ref.invalidate(homeRowsProvider);
+                        if (!dialogContext.mounted) return;
+                        if (failures.isEmpty) {
+                          Navigator.of(dialogContext).pop();
+                          if (mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Installed ${selected.length} plugins',
+                                ),
+                              ),
+                            );
+                          }
+                        } else {
+                          setDialogState(() {
+                            busy = false;
+                            error = failures.join('\n');
+                          });
+                        }
+                      },
+                child: Text('Install ${selected.length}'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   /// TV-friendly flow: show a QR so the user can open the add-on URL on a

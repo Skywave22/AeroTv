@@ -69,7 +69,7 @@ class JsNuvioScraper implements NuvioScraper {
 /// Nuvio scrapers cannot browse, search or supply metadata; upstream takes all
 /// of that from TMDB. Advertising anything else here would produce UI that
 /// silently returns nothing, so the capability set is deliberately narrow.
-class NuvioAdapter implements EcosystemAdapter {
+class NuvioAdapter implements EcosystemAdapter, RepositorySource {
   NuvioAdapter({
     required JsPluginStore store,
     JsSandboxPolicy policy = const JsSandboxPolicy(),
@@ -229,6 +229,7 @@ class NuvioAdapter implements EcosystemAdapter {
   }
 
   /// Reads a Nuvio repository. The pasted URL **is** the manifest.json URL.
+  @override
   Future<Result<List<SourceRef>>> fetchRepository(String url) async {
     final manifestUrl =
         url.endsWith('.json') ? url : '${url.replaceAll(RegExp(r'/$'), '')}/manifest.json';
