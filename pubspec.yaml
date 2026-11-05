@@ -1,0 +1,23 @@
+name: aero_tv_workspace
+description: Aero TV monorepo workspace root.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.13.0
+
+workspace:
+  - apps/aero_app
+  - packages/aero_core
+  - packages/aero_data
+  - packages/aero_ui
+  - packages/aero_player
+  - packages/eco_stremio
+  - packages/eco_js_runtime
+  - packages/eco_vega
+  - packages/eco_nuvio
+  - packages/eco_skystream
+  - packages/eco_cloudstream
+
+# Melos is activated globally (`dart pub global activate melos`) rather than
+# pinned here, so its transitive constraints can't conflict with drift_dev.

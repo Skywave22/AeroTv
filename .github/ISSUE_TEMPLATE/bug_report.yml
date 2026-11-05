@@ -1,0 +1,61 @@
+name: Bug report
+description: Something in Aero TV is broken
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please **do not** paste links to add-on
+        repositories, manifests, or stream URLs — this project ships no
+        content and we cannot help with third-party sources.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Focus ...
+        3. Press ...
+    validations:
+      required: true
+  - type: dropdown
+    id: ecosystem
+    attributes:
+      label: Which ecosystem is involved?
+      options:
+        - None / app UI
+        - Stremio
+        - Vega
+        - Nuvio
+        - SkyStream
+        - CloudStream
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      placeholder: "Chromecast with Google TV 4K, Android 12 / Pixel 8, Android 15"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Aero TV version
+      description: Settings → About, or the APK filename.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Settings → Logs → Export. Redact any URLs or credentials.
+      render: text

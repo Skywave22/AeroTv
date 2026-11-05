@@ -1,0 +1,22 @@
+name: aero_ui
+description: Aero TV design system, adaptive shell widgets and the TV focus system.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  aero_core:
+    path: ../aero_core
+  cached_network_image: ^3.4.1
+  palette_generator: ^0.3.3+7
+  collection: ^1.19.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^6.0.0

@@ -1,0 +1,6 @@
+# Copy to key.properties (gitignored) and fill in.
+# CI generates this file from GitHub secrets — see .github/workflows/build-apk.yml
+storeFile=../../secrets/release.keystore
+storePassword=CHANGE_ME
+keyAlias=release
+keyPassword=CHANGE_ME

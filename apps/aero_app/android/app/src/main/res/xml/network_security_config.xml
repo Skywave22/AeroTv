@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  User-supplied add-ons and stream hosts are frequently plain HTTP. Blocking
+  cleartext outright would break most self-hosted add-ons, so it is permitted
+  but the app warns in the UI when a repository is not HTTPS.
+
+  If you fork this and only use HTTPS sources, set cleartextTrafficPermitted
+  to false for a stricter posture.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

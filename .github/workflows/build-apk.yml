@@ -1,0 +1,172 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Which artifacts to build'
+        required: true
+        default: 'both'
+        type: choice
+        options: [both, apk, appbundle]
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.9'
+
+jobs:
+  build:
+    name: Android release
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # Pin the SDK pieces the build needs. The runner image has an SDK, but
+      # not necessarily API 36 or the platforms some plugins compile against;
+      # installing them explicitly avoids a licence/download failure mid-build.
+      - uses: android-actions/setup-android@v3
+        with:
+          # media_kit/libmpv and flutter_js build native code, so the NDK and
+          # CMake are required. Versions match what the build resolves locally.
+          packages: >-
+            platform-tools
+            platforms;android-36 platforms;android-35 platforms;android-34
+            build-tools;36.0.0
+            ndk;28.2.13676358 cmake;3.22.1
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      # ---------------------------------------------------------- signing
+      # Optional. Add these repository secrets to produce a signed release:
+      #   ANDROID_KEYSTORE_BASE64  (base64 of your .keystore)
+      #   ANDROID_KEYSTORE_PASSWORD
+      #   ANDROID_KEY_ALIAS
+      #   ANDROID_KEY_PASSWORD
+      # Without them the build still succeeds, signed with debug keys, which
+      # is fine for internal testing but NOT for distribution.
+      - name: Prepare release signing
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            mkdir -p "$RUNNER_TEMP/keystore"
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore/release.keystore"
+            {
+              echo "storeFile=$RUNNER_TEMP/keystore/release.keystore"
+              echo "storePassword=$KEYSTORE_PASSWORD"
+              echo "keyAlias=$KEY_ALIAS"
+              echo "keyPassword=$KEY_PASSWORD"
+            } > apps/aero_app/android/key.properties
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "Release signing configured."
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No signing secrets found. Building with debug keys — do not distribute this artifact publicly."
+          fi
+
+      # ------------------------------------------------------------ build
+      - name: Build split APKs (per ABI)
+        if: github.event.inputs.build_type != 'appbundle'
+        working-directory: apps/aero_app
+        run: flutter build apk --release --split-per-abi --dart-define=CI=true
+
+      - name: Build universal APK
+        if: github.event.inputs.build_type != 'appbundle'
+        working-directory: apps/aero_app
+        run: flutter build apk --release --dart-define=CI=true
+
+      - name: Build App Bundle
+        if: github.event.inputs.build_type != 'apk'
+        working-directory: apps/aero_app
+        run: flutter build appbundle --release --dart-define=CI=true
+        continue-on-error: true
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          find apps/aero_app/build/app/outputs -name "*.apk" -exec cp {} dist/ \; 2>/dev/null || true
+          find apps/aero_app/build/app/outputs -name "*.aab" -exec cp {} dist/ \; 2>/dev/null || true
+          cd dist && for f in *.apk *.aab; do
+            [ -e "$f" ] || continue
+            sha256sum "$f" >> SHA256SUMS.txt
+          done
+          ls -lh
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: aero-tv-apk-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Clean up signing material
+        if: always()
+        run: |
+          rm -f apps/aero_app/android/key.properties
+          rm -rf "$RUNNER_TEMP/keystore"
+
+      # ---------------------------------------------------------- release
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            ## Aero TV ${{ github.ref_name }}
+
+            **Neutral player and plugin host.** This app ships with no content,
+            no add-ons and no repositories. You add your own sources.
+
+            ### Which APK do I install?
+            | File | Device |
+            |---|---|
+            | `app-arm64-v8a-release.apk` | Most modern phones, Android TV, Fire TV Stick 4K |
+            | `app-armeabi-v7a-release.apk` | Older 32-bit devices and older Fire TV sticks |
+            | `app-x86_64-release.apk` | Emulators, some Chromebooks |
+            | `app-release.apk` | Universal — works everywhere, larger download |
+
+            Not sure? Install the universal `app-release.apk`.
+
+            ### Verify your download
+            Check the file against `SHA256SUMS.txt`.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

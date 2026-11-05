@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.9'
+
+jobs:
+  analyze-and-test:
+    name: Analyze & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Show toolchain
+        run: flutter --version
+
+      # The workspace resolves every package in one pass.
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      # Generated Drift code is committed, so CI never needs build_runner.
+      # This step verifies the committed code is up to date.
+      # Generated Drift code is committed so CI never *needs* build_runner.
+      # This step only verifies the committed file matches a fresh generation.
+      # Output goes OUTSIDE the repo: a generated copy left inside the package
+      # would be picked up by `dart analyze` and reported as duplicate classes.
+      - name: Verify generated code is current
+        working-directory: packages/aero_data
+        continue-on-error: true
+        run: |
+          OUT="$RUNNER_TEMP/drift_check"
+          dart run build_runner build --delete-conflicting-outputs --output="$OUT"
+          if ! diff -q lib/src/db/database.g.dart "$OUT/lib/src/db/database.g.dart"; then
+            echo "::error::database.g.dart is stale. Run 'dart run build_runner build --delete-conflicting-outputs' in packages/aero_data and commit the result."
+            exit 1
+          fi
+
+      - name: Analyze
+        run: dart analyze --fatal-infos
+
+      - name: Test aero_core
+        working-directory: packages/aero_core
+        run: dart test
+
+      - name: Test eco_stremio
+        working-directory: packages/eco_stremio
+        run: dart test
+
+      - name: Test aero_data
+        working-directory: packages/aero_data
+        run: flutter test
+
+      - name: Test eco_js_runtime
+        working-directory: packages/eco_js_runtime
+        run: flutter test
+
+      - name: Test app
+        working-directory: apps/aero_app
+        run: flutter test

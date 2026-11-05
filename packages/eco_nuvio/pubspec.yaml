@@ -1,0 +1,22 @@
+name: eco_nuvio
+description: nuvio ecosystem adapter running on the Aero JS runtime host.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  aero_core:
+    path: ../aero_core
+  eco_js_runtime:
+    path: ../eco_js_runtime
+  dio: ^5.11.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^6.0.0

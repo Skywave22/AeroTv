@@ -1,0 +1,18 @@
+# Drift codegen configuration.
+#
+# store_date_time_values_as_text is REQUIRED, not cosmetic.
+#
+# By default Drift stores DateTime as a Unix timestamp in *seconds*. Two writes
+# in the same second therefore get identical values, and `ORDER BY updatedAt
+# DESC` becomes a tie that SQLite resolves arbitrarily. That produced a real
+# bug: watching S01E01 then S01E02 in quick succession left Continue Watching
+# showing E01, and the same class of tie affected Library ordering by addedAt.
+#
+# ISO-8601 text keeps sub-second precision and sorts lexicographically in
+# chronological order, so ordering is correct and deterministic.
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          store_date_time_values_as_text: true

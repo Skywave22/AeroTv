@@ -1,0 +1,36 @@
+name: aero_tv
+repository: https://github.com/OWNER/REPO
+
+packages:
+  - apps/*
+  - packages/*
+
+command:
+  bootstrap:
+    runPubGetInParallel: false
+
+scripts:
+  analyze:
+    description: Static analysis across every package.
+    run: dart analyze --fatal-infos .
+  test:
+    description: Unit tests across every package.
+    run: flutter test
+    exec:
+      concurrency: 1
+    packageFilters:
+      dirExists: test
+  gen:
+    description: Run code generation (Drift).
+    run: dart run build_runner build --delete-conflicting-outputs
+    exec:
+      concurrency: 1
+    packageFilters:
+      dependsOn: build_runner
+  apk:
+    description: Build a release APK (arm64 + arm32 + x64).
+    run: flutter build apk --release --split-per-abi
+    exec:
+      concurrency: 1
+    packageFilters:
+      scope: aero_app

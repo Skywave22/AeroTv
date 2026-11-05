@@ -1,0 +1,53 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock.bak
+*.iml
+.idea/
+.vscode/
+*.log
+
+# Android — patterns are `**/`-prefixed so they also match the nested
+# apps/aero_app/android/ directory, not just a root-level one.
+**/.gradle/
+**/android/local.properties
+**/android/key.properties
+**/android/app/.cxx/
+**/android/captures/
+**/GeneratedPluginRegistrant.java
+*.jks
+*.keystore
+!**/debug.keystore
+# The Gradle wrapper jar MUST be committed so CI can bootstrap Gradle.
+!**/gradle/wrapper/gradle-wrapper.jar
+
+# iOS / macOS
+**/ios/Pods/
+**/ios/.symlinks/
+**/Podfile.lock
+**/macos/Pods/
+**/ephemeral/
+
+# Secrets — never commit these
+.env
+.env.*
+secrets/
+*.p12
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local toolchains / scratch (never part of the repo)
+.jdk/
+.android-sdk/
+swapfile
+dist/

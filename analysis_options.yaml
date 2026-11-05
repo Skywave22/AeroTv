@@ -1,0 +1,17 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/generated/**"
+  errors:
+    todo: ignore
+    deprecated_member_use: warning
+    deprecated_member_use_from_same_package: ignore
+
+linter:
+  rules:
+    - prefer_final_locals
+    - avoid_print
+    - unawaited_futures

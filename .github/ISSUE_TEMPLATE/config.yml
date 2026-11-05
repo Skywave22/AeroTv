@@ -1,0 +1,7 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report infringing content
+    url: https://github.com/OWNER/REPO/blob/main/docs/LEGAL.md
+    about: >-
+      Aero TV hosts no content. Read the legal notice for where to send a
+      takedown request.

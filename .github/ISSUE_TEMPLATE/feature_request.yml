@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an improvement to the app itself
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Requests for specific add-ons, sources, or content will be closed —
+        Aero TV is a neutral host and ships none.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where does this apply?
+      options:
+        - Phone / tablet
+        - Android TV / Fire TV
+        - Both
+        - Extensions manager
+        - Player
+        - Build / CI
+    validations:
+      required: true

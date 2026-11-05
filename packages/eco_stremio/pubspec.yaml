@@ -1,0 +1,18 @@
+name: eco_stremio
+description: Stremio add-on adapter (HTTP + JSON), pure Dart, all platforms.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  aero_core:
+    path: ../aero_core
+  dio: ^5.11.1
+  collection: ^1.19.1
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0

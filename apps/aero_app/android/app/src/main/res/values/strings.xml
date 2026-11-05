@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Rebranding: change this and the launcher assets. -->
+    <string name="app_name">Aero TV</string>
+</resources>

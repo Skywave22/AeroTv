@@ -1,0 +1,33 @@
+name: eco_cloudstream
+description: CloudStream (.cs3) bridge. Android only; requires a native Kotlin host.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  aero_core:
+    path: ../aero_core
+  dio: ^5.11.1
+  crypto: ^3.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^6.0.0
+
+# NOTE: no `flutter.plugin` block on purpose. The native Kotlin host is not
+# part of this repo (GPL-3 review pending). Declaring a pluginClass here would
+# make the Android build fail with a missing-class error. When the host is
+# added deliberately, re-declare:
+#
+# flutter:
+#   plugin:
+#     platforms:
+#       android:
+#         package: tv.aero.cloudstream
+#         pluginClass: AeroCloudStreamPlugin
