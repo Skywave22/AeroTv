@@ -66,6 +66,12 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
+      # The Gradle wrapper must be executable. Git preserves the mode, but a
+      # checkout on a filesystem that drops it (or a zip export) would make
+      # Flutter's `./gradlew` invocation fail with "Permission denied".
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x apps/aero_app/android/gradlew
+
       - name: Resolve dependencies
         run: flutter pub get
 
