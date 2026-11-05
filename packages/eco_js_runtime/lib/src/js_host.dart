@@ -439,9 +439,15 @@ class JsPluginHost {
   ///
   /// [functionName] is validated to prevent code injection through a
   /// malicious manifest.
+  /// Invokes a plugin function.
+  ///
+  /// [style] selects the calling convention, because the ecosystems genuinely
+  /// differ: Vega and Nuvio return promises, SkyStream takes a trailing
+  /// callback. See docs/specs/VERIFIED_CONTRACTS.md.
   Future<Result<dynamic>> call(
     String functionName, [
     List<Object?> args = const [],
+    JsCallStyle style = JsCallStyle.promise,
   ]) async {
     if (!_ready) return const Err('Plugin host not initialised');
     if (!RegExp(r'^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$').hasMatch(functionName)) {
@@ -473,6 +479,10 @@ class JsPluginHost {
         }
       });
 
+      final useCallback = style == JsCallStyle.callback;
+      // In callback mode the callback is appended after the positional args.
+      final callbackArgs =
+          args.isEmpty ? 'cb' : '$encodedArgs, cb';
       final script = '''
         (function () {
           try {
@@ -481,11 +491,25 @@ class JsPluginHost {
               sendMessage('aero:result', JSON.stringify({ id: $callId, ok: false, payload: 'Function not found: $functionName' }));
               return;
             }
-            Promise.resolve(fn($encodedArgs)).then(function (value) {
+            var done = function (value) {
               sendMessage('aero:result', JSON.stringify({ id: $callId, ok: true, payload: JSON.stringify(value === undefined ? null : value) }));
-            }).catch(function (err) {
+            };
+            var fail = function (err) {
               sendMessage('aero:result', JSON.stringify({ id: $callId, ok: false, payload: String(err && err.message ? err.message : err) }));
-            });
+            };
+            if ($useCallback) {
+              // SkyStream: fn(args..., cb). The function may also return a
+              // promise; whichever settles first wins, and `settled` stops a
+              // plugin that both calls back and resolves from double-reporting.
+              var settled = false;
+              var cb = function (value) { if (!settled) { settled = true; done(value); } };
+              var ret = fn($callbackArgs);
+              if (ret && typeof ret.then === 'function') {
+                ret.then(function (v) { if (!settled && v !== undefined) { settled = true; done(v); } }).catch(function (e) { if (!settled) { settled = true; fail(e); } });
+              }
+            } else {
+              Promise.resolve(fn($encodedArgs)).then(done).catch(fail);
+            }
           } catch (e) {
             sendMessage('aero:result', JSON.stringify({ id: $callId, ok: false, payload: String(e && e.message ? e.message : e) }));
           }
@@ -497,11 +521,21 @@ class JsPluginHost {
         _pendingCalls.remove(callId);
         return Err(res.stringResult);
       }
-      for (var i = 0; i < 100; i++) {
-        _runtime!.executePendingJob();
-        if (completer.isCompleted) break;
-        await Future<void>.delayed(const Duration(milliseconds: 5));
-      }
+      // Pump QuickJS' job queue until the call settles or the budget expires.
+      // The previous fixed 100-iteration loop stopped after ~500 ms, which
+      // silently stalled any plugin awaiting a real network fetch.
+      final deadline = DateTime.now().add(policy.evalTimeout);
+      unawaited(() async {
+        while (!completer.isCompleted && DateTime.now().isBefore(deadline)) {
+          if (_disposed || _runtime == null) return;
+          try {
+            _runtime!.executePendingJob();
+          } catch (_) {
+            return;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+      }());
 
       return await completer.future.timeout(
         policy.evalTimeout,
@@ -547,4 +581,13 @@ class JsPluginHost {
     _runtime = null;
     _dio.close(force: true);
   }
+}
+
+/// How a plugin function receives its arguments and reports its result.
+enum JsCallStyle {
+  /// `fn(args...)` returns a value or a promise. Vega, Nuvio.
+  promise,
+
+  /// `fn(args..., cb)` reports through a trailing callback. SkyStream.
+  callback,
 }

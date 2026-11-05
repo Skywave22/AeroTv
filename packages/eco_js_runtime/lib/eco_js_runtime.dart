@@ -9,4 +9,4 @@ export 'src/js_host.dart';
 export 'src/js_sandbox_policy.dart';
 export 'src/host_api_shim.dart';
 export 'src/js_plugin_bundle.dart';
-export 'src/js_ecosystem_adapter.dart';
+export 'src/js_source_manager.dart';

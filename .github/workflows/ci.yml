@@ -76,6 +76,20 @@ jobs:
         working-directory: packages/eco_js_runtime
         run: flutter test
 
+      # The JS ecosystem packages depend on Flutter transitively, so they use
+      # `flutter test`, not `dart test`.
+      - name: Test eco_skystream
+        working-directory: packages/eco_skystream
+        run: flutter test
+
+      - name: Test eco_vega
+        working-directory: packages/eco_vega
+        run: flutter test
+
+      - name: Test eco_nuvio
+        working-directory: packages/eco_nuvio
+        run: flutter test
+
       - name: Test app
         working-directory: apps/aero_app
         run: flutter test

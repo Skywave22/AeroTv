@@ -112,3 +112,53 @@ Plus overscan padding, no touch-only affordances, and remote key mapping.
 - **No torrent engine.** Torrent-only streams are labelled, not played. A debrid
   add-on resolves them server-side into direct URLs, which we do play.
 - **No native CloudStream host.** Licensing gate; see `docs/specs/cloudstream.md`.
+
+
+---
+
+## Per-ecosystem provider interfaces (added after Phase 0)
+
+The original design had one `JsDialect` object that renamed functions for each
+JS ecosystem. Reading the upstream sources proved that cannot work: the three
+ecosystems differ in **calling convention**, **module layout** and **capability
+surface**, not just names. `JsDialect` has been deleted.
+
+```
+aero_core.EcosystemAdapter          ← unified contract the app talks to
+        ▲
+        │  one adapter per ecosystem, mapping native shapes → MediaItem/StreamLink
+        │
+  ┌─────┴──────────┬────────────────┬─────────────────┐
+SkyStreamAdapter  VegaAdapter   NuvioAdapter    StremioAdapter
+        │              │              │
+SkyStreamProvider  VegaProvider   NuvioScraper     ← native interfaces
+        │              │              │
+        └──────────────┴──────────────┘
+                       │
+              JsSourceManager                ← shared lifecycle ONLY
+        (download · hash pin · boot · cache · health · teardown)
+                       │
+                 JsPluginHost                ← QuickJS sandbox
+```
+
+`JsSourceManager` deliberately knows nothing about function names or repository
+formats. Each provider interface mirrors its upstream counterpart so a plugin
+behaves exactly as it does in its own app, and the translation to Aero's models
+happens in one auditable place per ecosystem.
+
+Calling conventions are handled by `JsCallStyle`:
+
+* `JsCallStyle.callback` — SkyStream's `fn(args…, cb)`. The bridge tolerates a
+  plugin that both calls back *and* resolves, reporting only the first.
+* `JsCallStyle.promise` — Vega's single-object argument and Nuvio's positional
+  arguments.
+
+### Capability-driven UI
+
+`Capability` is now load-bearing rather than decorative. Nuvio declares
+`{streams}` only, and the Browse tab filters on
+`adapter.capabilities.contains(Capability.catalogs)`. A plugin that cannot
+browse is listed with an explanation instead of appearing and showing nothing.
+
+See **[specs/VERIFIED_CONTRACTS.md](specs/VERIFIED_CONTRACTS.md)** for the
+contracts themselves and how to re-verify them.

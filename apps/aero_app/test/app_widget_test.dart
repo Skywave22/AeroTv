@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:aero_app/src/screens/browse_screen.dart';
 import 'package:aero_app/src/screens/home_screen.dart';
 import 'package:aero_app/src/state/providers.dart';
 
@@ -31,6 +32,8 @@ Future<void> pumpScreen(
         installedSourcesProvider.overrideWith((ref) async => sources),
         continueWatchingProvider.overrideWith((ref) => Stream.value(const [])),
         homeRowsProvider.overrideWith((ref) async => const []),
+        browsableSourcesProvider.overrideWith((ref) async => sources),
+        nonBrowsableSourcesProvider.overrideWith((ref) async => const []),
       ],
       child: MaterialApp(
         theme: AeroTheme.dark(tvMode: isTv),
@@ -83,6 +86,34 @@ void main() {
 
     await pumpScreen(tester, const HomeScreen(), db: db);
 
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Browse explains itself when nothing is browsable', (tester) async {
+    await pumpScreen(tester, const BrowseScreen(), db: db);
+
+    expect(find.text('Nothing to browse yet'), findsOneWidget);
+    expect(find.textContaining('one plugin at a time'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Browse renders a plugin picker when plugins exist', (tester) async {
+    final source = InstalledSource(
+      id: 'p1',
+      ecosystem: Ecosystem.skystream,
+      name: 'My Plugin',
+      url: 'https://example.com/plugin.js',
+      version: '1',
+    );
+    await pumpScreen(
+      tester,
+      const BrowseScreen(),
+      db: db,
+      sources: [source],
+    );
+
+    // The chip names the active world so content is never ambiguous.
+    expect(find.text('My Plugin'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 

@@ -36,6 +36,20 @@ enum Quality implements Comparable<Quality> {
   bool operator >=(Quality other) => height >= other.height;
   bool operator <=(Quality other) => height <= other.height;
 
+  /// Buckets an exact pixel height into the nearest known tier.
+  ///
+  /// Plugin ecosystems report quality inconsistently — SkyStream alone accepts
+  /// `1080`, `"1080p"`, `"4K"` and `0` (meaning an HLS master). Callers normalise
+  /// the spelling, then use this for the numeric case.
+  static Quality fromHeight(int height) {
+    if (height >= 2000) return Quality.uhd;
+    if (height >= 1400) return Quality.qhd;
+    if (height >= 1000) return Quality.fullHd;
+    if (height >= 700) return Quality.hd;
+    if (height > 0) return Quality.sd;
+    return Quality.unknown;
+  }
+
   /// Parses quality out of messy provider text like "1080p WEB-DL x265".
   static Quality parse(String? text) {
     if (text == null || text.isEmpty) return Quality.unknown;

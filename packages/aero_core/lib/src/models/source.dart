@@ -11,6 +11,7 @@ class SourceRef {
     this.name,
     this.version,
     this.expectedSha256,
+    this.extra = const {},
   });
 
   final Ecosystem ecosystem;
@@ -23,6 +24,10 @@ class SourceRef {
 
   /// Hash pinning for untrusted native/JS payloads.
   final String? expectedSha256;
+
+  /// Raw repository entry, when the ecosystem ships metadata alongside the
+  /// plugin URL (SkyStream inlines `plugin.json` fields in `repo.json`).
+  final Map<String, dynamic> extra;
 
   Map<String, dynamic> toJson() => {
         'ecosystem': ecosystem.id,

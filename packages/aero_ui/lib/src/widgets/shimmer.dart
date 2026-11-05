@@ -87,11 +87,20 @@ class PosterSkeleton extends StatelessWidget {
   final double width;
   final bool reduceMotion;
 
+  /// Intrinsic height: 2:3 poster + 8 + 12 title + 5 + 10 subtitle.
+  ///
+  /// Callers that put skeletons in a fixed-height box MUST use this, otherwise
+  /// the Column overflows by exactly 35 px. Exposing it keeps the arithmetic in
+  /// one place instead of duplicated (and wrong) at each call site.
+  static double heightFor(double width) => width * 1.5 + 35;
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
+      height: heightFor(width),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Shimmer(

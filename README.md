@@ -9,18 +9,44 @@ Aero TV is a Flutter app for Android, Android TV, and (later) desktop. It treats
 five plugin ecosystems as separate, first-class citizens — each with its own
 manager — behind one calm, cinematic interface.
 
-| Ecosystem | Format | Runs on | Status |
-|---|---|---|---|
-| **Stremio** | HTTP + JSON | All platforms | ✅ Implemented & tested |
-| **Vega** | JS bundles | All platforms | ⚠️ Adapter built, spec unverified |
-| **Nuvio** | JS scrapers | All platforms | ⚠️ Adapter built, spec unverified |
-| **SkyStream** | JS plugins | All platforms | ⚠️ Adapter built, spec unverified |
-| **CloudStream** | Kotlin/DEX `.cs3` | Android only | 🔒 Disabled pending GPL-3 review |
+| Ecosystem | Format | Runs on | Capabilities | Status |
+|---|---|---|---|---|
+| **Stremio** | HTTP + JSON | All platforms | Catalogs · search · details · streams | ✅ Verified |
+| **SkyStream** | JS, callback-style | All platforms | Catalogs · search · details · streams | ✅ Verified |
+| **Vega** | JS, six modules | All platforms | Catalogs · search · details · streams | ✅ Verified |
+| **Nuvio** | JS, QuickJS | All platforms | **Streams only** (TMDB-keyed) | ✅ Verified |
+| **CloudStream** | Kotlin/DEX `.cs3` | Android only | — | 🔒 Disabled pending GPL-3 review |
 
-> **Read this first:** the three JS adapters are written against *provisional*
-> function-name mappings. Phase 0 of the roadmap is a spec-verification sprint.
-> See `docs/specs/*.md` — each one lists exactly what must be confirmed before
-> that ecosystem should be trusted.
+> **Phase 0 is complete.** Every JS contract was read from upstream source on
+> 2026-11-05 and each ecosystem now has its **own** provider interface rather
+> than a shared guess. The analysis, the differences that matter, and a
+> re-verification checklist are in
+> **[docs/specs/VERIFIED_CONTRACTS.md](docs/specs/VERIFIED_CONTRACTS.md)**.
+>
+> The most consequential finding: **Nuvio plugins only export `getStreams`.**
+> They cannot browse or search — Nuvio takes all metadata from TMDB. Aero
+> advertises that honestly instead of showing an empty screen.
+
+---
+
+## Navigation
+
+Six tabs, each with one job:
+
+| Tab | Purpose |
+|---|---|
+| **Home** | Every ecosystem merged into one feed, in your priority order |
+| **Browse** | **One plugin's own world** — its categories, its hero, its ordering |
+| **Search** | Query across enabled plugins |
+| **Library** | Watchlist, favourites, continue watching |
+| **Providers** | The plugin directory: what is installed, what it can do |
+| **Settings** | Player, UI, backup, and the Extensions manager |
+
+Browse reproduces SkyStream's dashboard rule for every ecosystem that can
+supply a home feed: a `"Trending"` category becomes the hero carousel and is
+removed from the rows below; if a plugin has no `"Trending"`, its first category
+is promoted instead. Plugins that cannot browse (Nuvio) are listed with the
+reason rather than silently missing.
 
 ---
 
@@ -43,7 +69,7 @@ manager — behind one calm, cinematic interface.
 - **Android TV** — leanback launcher, banner, D-pad focus with per-row memory,
   overscan margin, remote key mapping.
 
-**127 automated tests** cover the core models, ranking, resolver, Stremio
+**167 automated tests** cover the core models, ranking, resolver, Stremio
 protocol, database (including the v1→v2 migration), backup, the JS sandbox
 policy, adaptive TV layout and the app's widget tree. `dart analyze
 --fatal-infos` is clean across the whole workspace.

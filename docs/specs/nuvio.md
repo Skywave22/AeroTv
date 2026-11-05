@@ -1,41 +1,32 @@
-# Nuvio scrapers — PROVISIONAL
+# Nuvio plugin contract
 
-**Status:** ⚠️ **NOT VERIFIED.** Phase 0 task.
-**Adapter:** `packages/eco_nuvio`.
-**Runtime:** JavaScript in the Aero QuickJS sandbox. All platforms.
+> Full cross-ecosystem analysis, including the comparison table and the
+> re-verification checklist: **[VERIFIED_CONTRACTS.md](VERIFIED_CONTRACTS.md)**.
 
-## What we believe to be true
+**Status: VERIFIED 2026-11-05** against `NuvioMedia/NuvioMobile@cmp-rewrite`
+(`PluginModels.kt`, `PluginManifestParser.kt`, `JsBindings.kt`,
+`PluginRepository.kt`) and `NuvioMedia/NuvioTV@dev` (`PluginRuntime.kt`).
+**Both apps run the identical JS contract.**
 
-- Scrapers are JavaScript, discovered from a repository manifest.
-- Titles are keyed by **TMDB id** rather than IMDb. This is why
-  `MetadataResolver` exists and why `NuvioAdapter.prefersTmdbIds` is true.
+* Repository: the pasted URL **is** `manifest.json`. Scraper code resolves to
+  `manifestUrl.removeSuffix("/manifest.json") + "/" + filename`, or `filename`
+  verbatim when it is absolute.
+* Manifest: `{name, version, description?, author?, scrapers: [...]}`. Parser
+  requires non-blank name and version and ≥ 1 scraper.
+* **The entire plugin API is `getStreams(tmdbId, mediaType, season, episode)`**
+  plus optional `onSettings()`. Resolved as
+  `module.exports.getStreams || globalThis.getStreams`.
+* Injected globals: `SCRAPER_ID`, `SCRAPER_SETTINGS`, `TMDB_API_KEY`.
+* Result carries `seeders`, `peers`, `infoHash` — this ecosystem is
+  **torrent-first**, so Aero emits torrent `StreamLink`s.
+* **Capabilities: streams only.** No catalogs, no search, no metadata; Nuvio
+  takes all of that from TMDB.
 
-## Provisional dialect
+Implementation: `packages/eco_nuvio/lib/src/nuvio_scraper.dart`, `nuvio_adapter.dart`.
 
-| Purpose | Assumed name |
-|---|---|
-| Manifest file | `repo.json` |
-| Repository index key | `scrapers` |
-| Home | `getHome(page, category)` |
-| Search | `search(query, page)` |
-| Details | `getDetail(id)` |
-| Streams | `getSources(id, context)` |
-| Results array key | `results` |
-| Item link field | `href` |
-| Stream quality field | `quality` |
+> The previous provisional mapping assumed `getHome`/`search`/`getDetail`.
+> **None of those exist.** Offering to browse a Nuvio plugin would always show
+> an empty screen, so the Browse tab excludes it by capability.
 
-## Phase 0 checklist
-
-1. Find the current Nuvio repository and scraper template.
-2. Confirm whether scrapers receive a **TMDB id, an IMDb id, or a full URL**.
-3. Confirm how season/episode are passed to `getSources`.
-4. Check whether scrapers expect a `Referer` to be preserved across redirects.
-5. Verify the repository index shape and whether entries are relative URLs
-   (the base adapter resolves relative URLs against the repo URL).
-6. Add a fixture + conformance test, then update `nuvioDialect`.
-
-## ID mapping dependency
-
-This ecosystem is the main consumer of the TMDB lookup. Without a user-supplied
-TMDB API key, `MetadataResolver` falls back to IMDb + title/year matching, which
-will reduce hit rate here. Surface that clearly in the UI (Settings → TMDB API key).
+NuvioTV additionally supports `RepositoryType.EXTERNAL_DEX` (CloudStream `.cs3`).
+That is a separate native path and stays behind Aero's CloudStream gate.

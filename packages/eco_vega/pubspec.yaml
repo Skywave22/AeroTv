@@ -17,6 +17,7 @@ dependencies:
   dio: ^5.11.1
 
 dev_dependencies:
+  test: ^1.25.0
   flutter_test:
     sdk: flutter
   lints: ^6.0.0

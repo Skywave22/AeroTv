@@ -36,6 +36,15 @@ class Adaptive {
         FormFactor.tv => 190,
       };
 
+  /// Horizontal page gutter. TV uses a wider margin so content stays inside
+  /// the title-safe area on older panels.
+  static double pagePadding(FormFactor f) => switch (f) {
+        FormFactor.phone => 16,
+        FormFactor.tablet => 24,
+        FormFactor.desktop => 32,
+        FormFactor.tv => 48,
+      };
+
   static double rowHeight(FormFactor f) => posterWidth(f) * 1.5 + 56;
 
   /// Grid columns for search/library.

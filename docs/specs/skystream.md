@@ -1,35 +1,24 @@
-# SkyStream plugins — PROVISIONAL
+# SkyStream plugin contract
 
-**Status:** ⚠️ **NOT VERIFIED.** Phase 0 task.
-**Adapter:** `packages/eco_skystream`.
-**Runtime:** JavaScript in the Aero QuickJS sandbox. All platforms.
+> Full cross-ecosystem analysis, including the comparison table and the
+> re-verification checklist: **[VERIFIED_CONTRACTS.md](VERIFIED_CONTRACTS.md)**.
 
-## What we believe to be true
+**Status: VERIFIED 2026-11-05** against `akashdh11/skystream@master` and
+`skystream-tools@main/DEVELOPER.md`.
 
-- Plugins are JavaScript with a repository index.
-- The browsing model is **one plugin at a time**, using the plugin's own home,
-  categories and search — this is what the Providers tab is designed around.
+* Manifest: `plugin.json` — `packageName`, `name`, `version` (**int**), `baseUrl`,
+  `languages`, `categories`; optional `domains[]` mirrors and `providers[]`
+  sub-feeds (mutually exclusive).
+* Functions, **callback-style**, exported on `globalThis`:
+  `getHome(cb)`, `search(query, page, cb)`, `load(url, cb)`, `loadStreams(url, cb)`.
+* Envelope `{success, data, errorCode, message}`.
+* `getHome` returns `{Category: [MultimediaItem]}`. `"Trending"` is **reserved**
+  for the hero carousel and is removed from the rows below; if absent the first
+  category is promoted.
+* Capabilities: catalogs, search, meta, streams.
 
-## Provisional dialect
+Implementation: `packages/eco_skystream/lib/src/skystream_provider.dart` (native
+shapes), `js_skystream_provider.dart` (callback bridge), `skystream_adapter.dart`.
 
-| Purpose | Assumed name |
-|---|---|
-| Manifest file | `plugins.json` |
-| Repository index key | `plugins` |
-| Home | `loadHome(page, category)` |
-| Search | `search(query, page)` |
-| Details | `load(id)` |
-| Streams | `loadLinks(id, context)` |
-| Item title field | `name` |
-| Item link field | `url` |
-| Stream quality field | `label` |
-
-## Phase 0 checklist
-
-1. Locate the current SkyStream repository and plugin template.
-2. Confirm the home/category contract — does `loadHome` return categories,
-   items, or both?
-3. Confirm the stream-link shape (some ecosystems nest `{links: [...]}` under
-   a server list; the base adapter unwraps `links`, `streams` and `data`).
-4. Check for host APIs beyond fetch/cheerio (e.g. a crypto or unpacker helper).
-5. Add a fixture + conformance test, then update `skyStreamDialect`.
+> The previous provisional mapping called `loadLinks`. That function does not
+> exist upstream — it is `loadStreams`.

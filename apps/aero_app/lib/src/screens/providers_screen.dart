@@ -2,39 +2,39 @@ import 'package:aero_core/aero_core.dart';
 import 'package:aero_ui/aero_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../routing/app_router.dart';
 import '../state/providers.dart';
 
-/// The Providers tab: browse **one plugin at a time**, natively, using that
-/// plugin's own home, categories and search — rather than an aggregated feed.
-class ProvidersScreen extends ConsumerStatefulWidget {
+/// Providers — the plugin directory.
+///
+/// This tab answers "what do I have installed, and does it work?". Browsing a
+/// plugin's *content* lives in the Browse tab; installing and configuring lives
+/// in the Extensions manager. Keeping those three separate stops the old
+/// behaviour where Providers duplicated Browse with a worse layout.
+class ProvidersScreen extends ConsumerWidget {
   const ProvidersScreen({super.key});
 
   @override
-  ConsumerState<ProvidersScreen> createState() => _ProvidersScreenState();
-}
-
-class _ProvidersScreenState extends ConsumerState<ProvidersScreen> {
-  InstalledSource? _selected;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isTv = ref.watch(isTvProvider);
+    final formFactor = Adaptive.detect(context, isTv: isTv);
     final sourcesAsync = ref.watch(installedSourcesProvider);
+    final pad = Adaptive.pagePadding(formFactor);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selected?.name ?? 'Providers'),
-        leading: _selected == null
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.arrow_back_rounded),
-                onPressed: () => setState(() => _selected = null),
-              ),
+        title: const Text('Providers'),
         actions: [
           IconButton(
+            tooltip: 'Add a plugin',
+            icon: const Icon(Icons.add_rounded),
+            onPressed: () => context.openExtensions(),
+          ),
+          IconButton(
+            tooltip: 'Extensions manager',
             icon: const Icon(Icons.tune_rounded),
-            tooltip: 'Manage extensions',
             onPressed: () => context.openExtensions(),
           ),
         ],
@@ -43,206 +43,184 @@ class _ProvidersScreenState extends ConsumerState<ProvidersScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => EmptyState(
           icon: Icons.error_outline_rounded,
-          title: 'Could not load providers',
+          title: 'Could not load your plugins',
           message: '$e',
+          actionLabel: 'Retry',
+          onAction: () => ref.invalidate(installedSourcesProvider),
         ),
         data: (sources) {
           if (sources.isEmpty) {
             return EmptyState(
               icon: Icons.extension_outlined,
-              title: 'No providers installed',
-              message:
-                  'The Providers tab lets you browse a single plugin using its '
-                  'own categories and search.\n\nInstall one to get started.',
-              actionLabel: 'Open Extensions',
+              title: 'No plugins installed',
+              message: 'Aero TV ships with no sources. Add a repository or a '
+                  'plugin URL to get started.',
+              actionLabel: 'Add a plugin',
               onAction: () => context.openExtensions(),
             );
           }
-          if (_selected != null) {
-            return _PluginBrowser(source: _selected!);
+
+          // Group by ecosystem so each plugin world is visually distinct.
+          final byEco = <Ecosystem, List<InstalledSource>>{};
+          for (final s in sources) {
+            byEco.putIfAbsent(s.ecosystem, () => []).add(s);
           }
-          return ListView(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            children: [
-              const SectionHeader(
-                title: 'Choose a provider',
-                subtitle: 'Browse one plugin at a time, using its own layout.',
-              ),
-              ...Ecosystem.values.map((eco) {
-                final group = sources.where((s) => s.ecosystem == eco).toList();
-                if (group.isEmpty) return const SizedBox.shrink();
-                final adapter = ref.read(adapterRegistryProvider).forEcosystem(eco);
-                final available = adapter?.isAvailable ?? false;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                      child: Row(
-                        children: [
-                          EcosystemBadge(ecosystem: eco),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${group.length} ${eco.sourceNoun.toLowerCase()}',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                        ],
-                      ),
+          final ecosystems = Ecosystem.values.where(byEco.containsKey).toList();
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(installedSourcesProvider);
+              await ref.read(installedSourcesProvider.future);
+            },
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(pad, 8, pad, 32),
+              children: [
+                for (final eco in ecosystems) ...[
+                  SectionHeader(
+                    title: eco.displayName,
+                    subtitle: _ecosystemNote(eco),
+                    padding: const EdgeInsets.fromLTRB(0, 18, 0, 10),
+                    trailing: Text(
+                      '${byEco[eco]!.length}',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    if (!available)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                        child: Text(
-                          adapter?.unavailableReason ?? 'Unavailable',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AeroColors.warning,
-                              ),
-                        ),
-                      ),
-                    ...group.map((s) => ListTile(
-                          enabled: available && s.enabled,
-                          leading: CircleAvatar(
-                            backgroundColor: Color(eco.colorSeed).withValues(alpha: 0.2),
-                            child: Text(
-                              s.name.isEmpty ? '?' : s.name[0].toUpperCase(),
-                              style: TextStyle(color: Color(eco.colorSeed)),
-                            ),
-                          ),
-                          title: Text(s.name),
-                          subtitle: Text(
-                            s.enabled ? 'v${s.version}' : 'Disabled',
-                          ),
-                          trailing: const Icon(Icons.chevron_right_rounded),
-                          onTap: available && s.enabled
-                              ? () => setState(() => _selected = s)
-                              : null,
-                        )),
-                  ],
-                );
-              }),
-              const SizedBox(height: 24),
-            ],
+                  ),
+                  for (final s in byEco[eco]!)
+                    _ProviderTile(source: s, formFactor: formFactor),
+                ],
+              ],
+            ),
           );
         },
       ),
     );
   }
+
+  /// One honest line about what each ecosystem can actually do, derived from
+  /// the verified contracts rather than marketing.
+  static String _ecosystemNote(Ecosystem eco) => switch (eco) {
+        Ecosystem.stremio => 'Catalogs, search, details and streams',
+        Ecosystem.skystream => 'Own home categories, search and streams',
+        Ecosystem.vega => 'Own catalogs, search and streams',
+        Ecosystem.nuvio => 'Streams only — metadata comes from TMDB',
+        Ecosystem.cloudstream => 'Android only, disabled pending licence review',
+      };
 }
 
-/// Browses a single plugin's own catalogs.
-class _PluginBrowser extends ConsumerStatefulWidget {
-  const _PluginBrowser({required this.source});
+class _ProviderTile extends ConsumerWidget {
+  const _ProviderTile({required this.source, required this.formFactor});
 
   final InstalledSource source;
+  final FormFactor formFactor;
 
   @override
-  ConsumerState<_PluginBrowser> createState() => _PluginBrowserState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final registry = ref.watch(adapterRegistryProvider);
+    final adapter = registry.forEcosystem(source.ecosystem);
+    final canBrowse =
+        adapter?.capabilities.contains(Capability.catalogs) ?? false;
+    final unavailable = adapter != null && !adapter.isAvailable;
 
-class _PluginBrowserState extends ConsumerState<_PluginBrowser> {
-  List<CatalogRow>? _catalogs;
-  final Map<String, List<MediaItem>> _items = {};
-  bool _loading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final adapter =
-          ref.read(adapterRegistryProvider).forEcosystem(widget.source.ecosystem);
-      if (adapter == null || !adapter.isAvailable) {
-        setState(() {
-          _error = adapter?.unavailableReason ?? 'This ecosystem is unavailable.';
-          _loading = false;
-        });
-        return;
-      }
-      final catalogs = await adapter.catalogs(widget.source.id);
-      if (!mounted) return;
-      setState(() => _catalogs = catalogs);
-
-      for (final c in catalogs.take(6)) {
-        try {
-          final page = await adapter.browse(
-            widget.source.id,
-            c.catalogId,
-            const CatalogQuery(),
-          );
-          if (!mounted) return;
-          setState(() => _items[c.catalogId] = page.items);
-        } catch (_) {
-          // Skip a failing category.
-        }
-      }
-      if (mounted) setState(() => _loading = false);
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = '$e';
-          _loading = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isTv = ref.watch(isTvProvider);
-    final formFactor = Adaptive.detect(context, isTv: isTv);
-
-    if (_loading && _catalogs == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null) {
-      return EmptyState(
-        icon: Icons.cloud_off_rounded,
-        title: 'Could not load this provider',
-        message: _error!,
-        actionLabel: 'Retry',
-        onAction: _load,
-      );
-    }
-    final catalogs = _catalogs ?? const [];
-    if (catalogs.isEmpty) {
-      return EmptyState(
-        icon: Icons.inbox_outlined,
-        title: 'No categories',
-        message:
-            '${widget.source.name} did not report any browsable categories.',
-        actionLabel: 'Retry',
-        onAction: _load,
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        children: [
-          for (final c in catalogs)
-            MediaRow(
-              title: c.title,
-              rowKey: '${widget.source.key}:${c.catalogId}',
-              items: _items[c.catalogId] ?? const [],
-              isLoading: _loading && !_items.containsKey(c.catalogId),
-              formFactor: formFactor,
-              onSelect: (item) => context.openDetails(
-                item.ref,
-                sourceId: widget.source.id,
-                ecosystem: widget.source.ecosystem,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TvFocus(
+        borderRadius: 14,
+        onSelect: () => _open(context, ref, canBrowse),
+        child: Card(
+          margin: EdgeInsets.zero,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => _open(context, ref, canBrowse),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor:
+                        Color(source.ecosystem.colorSeed).withValues(alpha: 0.16),
+                    child: source.logo != null && source.logo!.isNotEmpty
+                        ? ClipOval(
+                            child: Image.network(
+                              source.logo!,
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) =>
+                                  _fallbackIcon(source.ecosystem),
+                            ),
+                          )
+                        : _fallbackIcon(source.ecosystem),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                source.name,
+                                style: theme.textTheme.titleSmall,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (!source.enabled) ...[
+                              const SizedBox(width: 8),
+                              const MetaChip(label: 'Disabled'),
+                            ],
+                            if (unavailable) ...[
+                              const SizedBox(width: 8),
+                              const MetaChip(label: 'Unavailable'),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'v${source.version} · '
+                          '${canBrowse ? "Browsable" : "Streams only"}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AeroColors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (canBrowse)
+                    const Icon(Icons.chevron_right_rounded, size: 22)
+                  else
+                    Tooltip(
+                      message: 'This plugin only supplies streams. It appears '
+                          'in the source picker when you play something.',
+                      child: Icon(
+                        Icons.info_outline_rounded,
+                        size: 20,
+                        color: AeroColors.textTertiary,
+                      ),
+                    ),
+                ],
               ),
             ),
-          const SizedBox(height: 32),
-        ],
+          ),
+        ),
       ),
     );
+  }
+
+  Widget _fallbackIcon(Ecosystem eco) => Icon(
+        eco == Ecosystem.nuvio ? Icons.bolt_rounded : Icons.extension_rounded,
+        color: Color(eco.colorSeed),
+        size: 20,
+      );
+
+  void _open(BuildContext context, WidgetRef ref, bool canBrowse) {
+    if (canBrowse) {
+      ref.read(browseSelectionProvider.notifier).state = source.id;
+      context.go(Routes.browse);
+    } else {
+      context.openExtensions(ecosystem: source.ecosystem);
+    }
   }
 }

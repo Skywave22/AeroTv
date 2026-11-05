@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../screens/details_screen.dart';
 import '../screens/extensions_screen.dart';
+import '../screens/browse_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/logs_screen.dart';
@@ -17,6 +18,7 @@ import '../state/providers.dart';
 /// Route names used across the app.
 class Routes {
   static const home = '/';
+  static const browse = '/browse';
   static const search = '/search';
   static const library = '/library';
   static const providers = '/providers';
@@ -42,6 +44,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: Routes.home,
                 pageBuilder: (context, state) => const NoTransitionPage(
                   child: HomeScreen(),
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: Routes.browse,
+                pageBuilder: (context, state) => const NoTransitionPage(
+                  child: BrowseScreen(),
                 ),
               ),
             ],

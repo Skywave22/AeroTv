@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../state/providers.dart';
 
-/// Hosts the five tabs inside the adaptive navigation shell.
+/// Hosts the six tabs inside the adaptive navigation shell.
 class ShellScreen extends ConsumerWidget {
   const ShellScreen({required this.navigationShell, super.key});
 
@@ -16,6 +16,11 @@ class ShellScreen extends ConsumerWidget {
       label: 'Home',
       icon: Icons.home_outlined,
       selectedIcon: Icons.home_rounded,
+    ),
+    ShellDestination(
+      label: 'Browse',
+      icon: Icons.travel_explore_outlined,
+      selectedIcon: Icons.travel_explore_rounded,
     ),
     ShellDestination(
       label: 'Search',
