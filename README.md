@@ -1,5 +1,8 @@
 # Aero TV
 
+[![CI](https://github.com/Skywave22/AeroTv/actions/workflows/ci.yml/badge.svg)](https://github.com/Skywave22/AeroTv/actions/workflows/ci.yml)
+[![Build APK](https://github.com/Skywave22/AeroTv/actions/workflows/build-apk.yml/badge.svg)](https://github.com/Skywave22/AeroTv/actions/workflows/build-apk.yml)
+
 **A neutral media player and plugin host. Ships with no content and no sources.**
 
 Aero TV is a Flutter app for Android, Android TV, and (later) desktop. It treats
@@ -85,6 +88,28 @@ adb connect 192.168.1.50:5555
 flutter devices
 flutter run -d 192.168.1.50:5555
 ```
+
+---
+
+## Download an APK
+
+Every push to `main` builds installable APKs. Open the latest
+**[Build APK run](https://github.com/Skywave22/AeroTv/actions/workflows/build-apk.yml)**
+and download the `aero-tv-apk-…` artifact from the bottom of the page.
+
+| File | Size | Install on |
+|---|---|---|
+| `app-arm64-v8a-release.apk` | 35.6 MB | **Start here.** Most modern phones, Android TV, Fire TV Stick 4K |
+| `app-armeabi-v7a-release.apk` | 32.4 MB | Older 32-bit devices and older Fire TV sticks |
+| `app-x86_64-release.apk` | 40.6 MB | Emulators, some Chromebooks |
+| `app-release.apk` | 105.6 MB | Universal — works everywhere, larger download |
+| `app-release.aab` | 77.6 MB | Play Store upload only, not sideloadable |
+
+Verify against `SHA256SUMS.txt` in the same artifact. Sizes are dominated by
+libmpv's native codecs.
+
+> ⚠️ Until signing secrets are added these APKs are **debug-signed** — fine for
+> your own testing, not for public distribution. See below.
 
 ---
 
