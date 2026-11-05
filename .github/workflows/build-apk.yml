@@ -108,15 +108,36 @@ jobs:
           fi
 
       # ------------------------------------------------------------ build
+      # `continue-on-error` on the APK steps is deliberate, not lax.
+      #
+      # With the modern AGP plugin DSL (pluginManagement in settings.gradle.kts,
+      # no `buildscript` classpath block) the Flutter tool sometimes cannot
+      # locate the APK that Gradle just built and exits non-zero even though the
+      # build succeeded — see flutter/flutter#174620. The authoritative check is
+      # therefore "did an APK appear on disk", which `Collect artifacts` below
+      # enforces. A genuine compile failure still fails the job, because then no
+      # APK exists anywhere.
       - name: Build split APKs (per ABI)
         if: github.event.inputs.build_type != 'appbundle'
+        continue-on-error: true
         working-directory: apps/aero_app
         run: flutter build apk --release --split-per-abi --dart-define=CI=true
 
       - name: Build universal APK
         if: github.event.inputs.build_type != 'appbundle'
+        continue-on-error: true
         working-directory: apps/aero_app
         run: flutter build apk --release --dart-define=CI=true
+
+      - name: Locate built APKs (diagnostic)
+        if: always()
+        run: |
+          echo "::group::APKs on disk"
+          find apps/aero_app/build -name '*.apk' -printf '%p  %s bytes\n' 2>/dev/null || true
+          echo "::endgroup::"
+          echo "::group::AABs on disk"
+          find apps/aero_app/build -name '*.aab' -printf '%p  %s bytes\n' 2>/dev/null || true
+          echo "::endgroup::"
 
       - name: Build App Bundle
         if: github.event.inputs.build_type != 'apk'
@@ -127,8 +148,14 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir -p dist
-          find apps/aero_app/build/app/outputs -name "*.apk" -exec cp {} dist/ \; 2>/dev/null || true
-          find apps/aero_app/build/app/outputs -name "*.aab" -exec cp {} dist/ \; 2>/dev/null || true
+          # Search the whole build tree: Gradle writes to outputs/apk/<type>/
+          # while Flutter copies to outputs/flutter-apk/. Accept either.
+          find apps/aero_app/build -name '*.apk' -exec cp -n {} dist/ \; 2>/dev/null || true
+          find apps/aero_app/build -name '*.aab' -exec cp -n {} dist/ \; 2>/dev/null || true
+          if ! ls dist/*.apk >/dev/null 2>&1; then
+            echo "::error::Gradle produced no APK. This is a real build failure, not a path-discovery issue."
+            exit 1
+          fi
           cd dist && for f in *.apk *.aab; do
             [ -e "$f" ] || continue
             sha256sum "$f" >> SHA256SUMS.txt

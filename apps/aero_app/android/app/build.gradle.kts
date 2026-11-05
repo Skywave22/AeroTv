@@ -76,12 +76,15 @@ android {
         }
     }
 
-    // Smaller per-ABI downloads. CI also builds a universal APK.
-    splits {
-        abi {
-            isEnable = false // enabled by Flutter's --split-per-abi flag
-        }
-    }
+    // NOTE: deliberately NO `splits { abi { ... } }` block.
+    //
+    // Flutter's `--split-per-abi` flag enables ABI splits itself. Declaring the
+    // block here as well sets isEnable=false during evaluation and can win over
+    // the plugin's own configuration, so Gradle emits a single
+    // `app-release.apk` while the Flutter tool looks for
+    // `app-arm64-v8a-release.apk` — producing the misleading
+    // "Gradle build failed to produce an .apk file" even though Gradle
+    // succeeded. Let the CLI own this entirely.
 
     packaging {
         resources {

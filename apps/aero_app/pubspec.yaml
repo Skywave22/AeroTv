@@ -8,6 +8,9 @@ environment:
   sdk: ^3.13.0
 
 dependencies:
+  # Referenced by a transitive plugin; declared so the release build does not
+  # warn about a missing CupertinoIcons font family.
+  cupertino_icons: ^1.0.8
   flutter:
     sdk: flutter
   flutter_localizations:
