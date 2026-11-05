@@ -68,7 +68,50 @@ Two constraints worth remembering:
   safety net for future plugins. Everything is dexed by D8 regardless, so a
   mismatch is not a runtime problem on Android.
 
-### 2. `window_manager` is deliberately absent
+### 2. Never declare a `splits { abi { ... } }` block
+
+The first CI release run failed with:
+
+```
+Running Gradle task 'assembleRelease'...   284.1s
+Gradle build failed to produce an .apk file. It's likely that this file was
+generated under .../apps/aero_app/build, but the tool couldn't find it.
+```
+
+**Gradle had succeeded.** `app/build.gradle.kts` declared:
+
+```kotlin
+splits { abi { isEnable = false } }   // ← removed
+```
+
+That `false` is applied during evaluation and can win over the Flutter plugin's
+own `--split-per-abi` configuration. Gradle then emits a single
+`app-release.apk` while the tool searches for `app-arm64-v8a-release.apk`, and
+reports a failure despite a successful build.
+
+**Fix:** no `splits` block at all. Let the CLI own ABI splitting entirely.
+
+The workflow additionally treats the APK steps as `continue-on-error` and makes
+`Collect artifacts` the authoritative gate: it searches the build tree and fails
+only if **no APK exists**. This tolerates
+[flutter/flutter#174620](https://github.com/flutter/flutter/issues/174620) (the
+tool sometimes cannot locate the APK with the modern AGP plugin DSL) without
+masking a genuine compile failure.
+
+### 3. Collect artifacts only from `*/outputs/*`
+
+A bare `find build -name '*.aab'` also matches AGP's
+`intermediates/.../intermediary-bundle.aab` — a **190 MB** internal file that was
+being uploaded alongside the real 78 MB bundle. Always constrain the search:
+
+```bash
+find apps/aero_app/build -path '*/outputs/*' -name '*.aab' -exec cp -n {} dist/ \;
+```
+
+`cp -n` also de-duplicates `app-release.apk`, which appears in both
+`outputs/flutter-apk/` and `outputs/apk/release/`.
+
+### 4. `window_manager` is deliberately absent
 
 It pulls Dart native assets (`nativeapi` → `cnativeapi`) whose build hook
 requires GTK headers. That breaks plain `flutter test` on a Linux runner:
@@ -82,13 +125,13 @@ Desktop is Phase 5. When it lands, add `window_manager` back **together with**
 `sudo apt-get install -y libgtk-3-dev libxi-dev` (or equivalent) in the desktop
 workflow — not in `ci.yml`.
 
-### 3. `eco_cloudstream` declares no `flutter.plugin` block
+### 5. `eco_cloudstream` declares no `flutter.plugin` block
 
 Declaring `pluginClass` without a matching native implementation fails the
 Android build. The package is pure Dart plus a method-channel stub until the
 GPL-3 question in `docs/LEGAL.md` is resolved.
 
-### 4. DateTime columns are stored as TEXT (schema v2)
+### 6. DateTime columns are stored as TEXT (schema v2)
 
 Drift's default stores `DateTime` as a Unix timestamp in **seconds**. Two writes
 in the same second get identical values, so `ORDER BY updated_at DESC` becomes a
@@ -137,7 +180,7 @@ cd packages/aero_data
 dart run build_runner build --delete-conflicting-outputs
 ```
 
-### 5. Shimmer honours reduced motion
+### 7. Shimmer honours reduced motion
 
 `Shimmer` reads `MediaQuery.disableAnimationsOf(context)` and does not start its
 ticker when animations are disabled. Without this, widget tests fail the
@@ -166,10 +209,24 @@ That is the OOM killer, not a code error. Options:
 * **Never run `flutter test` concurrently with a Gradle build** on a small
   machine; they compete for the same memory and both fail.
 
-## Verified output
+## Verified output (GitHub Actions, release)
 
-A local `--debug --target-platform android-arm64` build succeeds and produces an
-APK whose manifest confirms the TV requirements:
+Both workflows are green. Release artifacts produced by `build-apk.yml`:
+
+| File | Size | Install on |
+|---|---|---|
+| `app-arm64-v8a-release.apk` | **35.6 MB** | Most modern phones, Android TV, Fire TV Stick 4K |
+| `app-armeabi-v7a-release.apk` | **32.4 MB** | Older 32-bit devices and older Fire TV sticks |
+| `app-x86_64-release.apk` | **40.6 MB** | Emulators, some Chromebooks |
+| `app-release.apk` (universal) | **105.6 MB** | Anything — larger download |
+| `app-release.aab` | **77.6 MB** | Play Store upload (not sideloadable) |
+
+Sizes are dominated by libmpv's native codecs, which is expected for a
+media_kit player. `SHA256SUMS.txt` accompanies every run.
+
+The debug APK is ~148 MB because it carries every ABI plus debug symbols.
+
+Manifest verified from a local debug build:
 
 ```
 package: name='app.orbit.media.debug'
@@ -185,9 +242,27 @@ targetSdkVersion:'36'
 Android TV; `leanback-launchable-activity` is what puts it on the TV home screen.
 The `.debug` suffix is debug-only — release builds use `app.orbit.media`.
 
-Debug APKs are large (~148 MB) because they carry every ABI plus debug symbols.
-Release APKs are split per ABI and shrunk, so they are far smaller; CI publishes
-the real sizes with each run.
+## Signing
+
+Without secrets the release APKs are **debug-signed**. They install and run, but
+must not be distributed publicly and cannot be upgraded to a differently-signed
+build later. Add these repository secrets to produce a proper release:
+
+```
+ANDROID_KEYSTORE_BASE64      base64 of your .keystore
+ANDROID_KEYSTORE_PASSWORD
+ANDROID_KEY_ALIAS
+ANDROID_KEY_PASSWORD
+```
+
+Generate a keystore once and keep it safe — losing it means you can never update
+the published app:
+
+```bash
+keytool -genkey -v -keystore release.keystore -alias aero \
+  -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 release.keystore   # paste into ANDROID_KEYSTORE_BASE64
+```
 
 ## Local build quick reference
 

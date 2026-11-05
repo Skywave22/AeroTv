@@ -26,9 +26,9 @@ jobs:
             name: macOS
             target: macos
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6.2.0
         with:
           distribution: temurin
           java-version: '17'
@@ -57,7 +57,7 @@ jobs:
         working-directory: apps/aero_app
         run: flutter build ${{ matrix.target }} --release
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: aero-tv-${{ matrix.target }}
           path: |
