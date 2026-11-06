@@ -9,6 +9,7 @@ export 'src/repos/history_repository.dart';
 export 'src/repos/health_repository.dart';
 export 'src/repos/cache_repository.dart';
 export 'src/repos/match_repository.dart';
+export 'src/repos/plugin_log_repository.dart';
 export 'src/repos/tmdb_id_lookup.dart';
 export 'src/settings/settings_repository.dart';
 export 'src/settings/secure_credentials.dart';

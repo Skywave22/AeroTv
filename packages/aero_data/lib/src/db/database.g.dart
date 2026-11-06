@@ -3613,6 +3613,442 @@ class IdMappingsCompanion extends UpdateCompanion<IdMappingRow> {
   }
 }
 
+class $PluginLogsTable extends PluginLogs
+    with TableInfo<$PluginLogsTable, PluginLogRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PluginLogsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _sourceKeyMeta = const VerificationMeta(
+    'sourceKey',
+  );
+  @override
+  late final GeneratedColumn<String> sourceKey = GeneratedColumn<String>(
+    'source_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _atMeta = const VerificationMeta('at');
+  @override
+  late final GeneratedColumn<DateTime> at = GeneratedColumn<DateTime>(
+    'at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _levelMeta = const VerificationMeta('level');
+  @override
+  late final GeneratedColumn<String> level = GeneratedColumn<String>(
+    'level',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tagMeta = const VerificationMeta('tag');
+  @override
+  late final GeneratedColumn<String> tag = GeneratedColumn<String>(
+    'tag',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _messageMeta = const VerificationMeta(
+    'message',
+  );
+  @override
+  late final GeneratedColumn<String> message = GeneratedColumn<String>(
+    'message',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _uriMeta = const VerificationMeta('uri');
+  @override
+  late final GeneratedColumn<String> uri = GeneratedColumn<String>(
+    'uri',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    sourceKey,
+    at,
+    level,
+    tag,
+    message,
+    uri,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'plugin_logs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PluginLogRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('source_key')) {
+      context.handle(
+        _sourceKeyMeta,
+        sourceKey.isAcceptableOrUnknown(data['source_key']!, _sourceKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceKeyMeta);
+    }
+    if (data.containsKey('at')) {
+      context.handle(_atMeta, at.isAcceptableOrUnknown(data['at']!, _atMeta));
+    } else if (isInserting) {
+      context.missing(_atMeta);
+    }
+    if (data.containsKey('level')) {
+      context.handle(
+        _levelMeta,
+        level.isAcceptableOrUnknown(data['level']!, _levelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_levelMeta);
+    }
+    if (data.containsKey('tag')) {
+      context.handle(
+        _tagMeta,
+        tag.isAcceptableOrUnknown(data['tag']!, _tagMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tagMeta);
+    }
+    if (data.containsKey('message')) {
+      context.handle(
+        _messageMeta,
+        message.isAcceptableOrUnknown(data['message']!, _messageMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_messageMeta);
+    }
+    if (data.containsKey('uri')) {
+      context.handle(
+        _uriMeta,
+        uri.isAcceptableOrUnknown(data['uri']!, _uriMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PluginLogRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PluginLogRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      sourceKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_key'],
+      )!,
+      at: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}at'],
+      )!,
+      level: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}level'],
+      )!,
+      tag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tag'],
+      )!,
+      message: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}message'],
+      )!,
+      uri: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uri'],
+      ),
+    );
+  }
+
+  @override
+  $PluginLogsTable createAlias(String alias) {
+    return $PluginLogsTable(attachedDatabase, alias);
+  }
+}
+
+class PluginLogRow extends DataClass implements Insertable<PluginLogRow> {
+  final int id;
+  final String sourceKey;
+  final DateTime at;
+  final String level;
+  final String tag;
+  final String message;
+
+  /// Redacted destination, when the entry describes a network call.
+  final String? uri;
+  const PluginLogRow({
+    required this.id,
+    required this.sourceKey,
+    required this.at,
+    required this.level,
+    required this.tag,
+    required this.message,
+    this.uri,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['source_key'] = Variable<String>(sourceKey);
+    map['at'] = Variable<DateTime>(at);
+    map['level'] = Variable<String>(level);
+    map['tag'] = Variable<String>(tag);
+    map['message'] = Variable<String>(message);
+    if (!nullToAbsent || uri != null) {
+      map['uri'] = Variable<String>(uri);
+    }
+    return map;
+  }
+
+  PluginLogsCompanion toCompanion(bool nullToAbsent) {
+    return PluginLogsCompanion(
+      id: Value(id),
+      sourceKey: Value(sourceKey),
+      at: Value(at),
+      level: Value(level),
+      tag: Value(tag),
+      message: Value(message),
+      uri: uri == null && nullToAbsent ? const Value.absent() : Value(uri),
+    );
+  }
+
+  factory PluginLogRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PluginLogRow(
+      id: serializer.fromJson<int>(json['id']),
+      sourceKey: serializer.fromJson<String>(json['sourceKey']),
+      at: serializer.fromJson<DateTime>(json['at']),
+      level: serializer.fromJson<String>(json['level']),
+      tag: serializer.fromJson<String>(json['tag']),
+      message: serializer.fromJson<String>(json['message']),
+      uri: serializer.fromJson<String?>(json['uri']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'sourceKey': serializer.toJson<String>(sourceKey),
+      'at': serializer.toJson<DateTime>(at),
+      'level': serializer.toJson<String>(level),
+      'tag': serializer.toJson<String>(tag),
+      'message': serializer.toJson<String>(message),
+      'uri': serializer.toJson<String?>(uri),
+    };
+  }
+
+  PluginLogRow copyWith({
+    int? id,
+    String? sourceKey,
+    DateTime? at,
+    String? level,
+    String? tag,
+    String? message,
+    Value<String?> uri = const Value.absent(),
+  }) => PluginLogRow(
+    id: id ?? this.id,
+    sourceKey: sourceKey ?? this.sourceKey,
+    at: at ?? this.at,
+    level: level ?? this.level,
+    tag: tag ?? this.tag,
+    message: message ?? this.message,
+    uri: uri.present ? uri.value : this.uri,
+  );
+  PluginLogRow copyWithCompanion(PluginLogsCompanion data) {
+    return PluginLogRow(
+      id: data.id.present ? data.id.value : this.id,
+      sourceKey: data.sourceKey.present ? data.sourceKey.value : this.sourceKey,
+      at: data.at.present ? data.at.value : this.at,
+      level: data.level.present ? data.level.value : this.level,
+      tag: data.tag.present ? data.tag.value : this.tag,
+      message: data.message.present ? data.message.value : this.message,
+      uri: data.uri.present ? data.uri.value : this.uri,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PluginLogRow(')
+          ..write('id: $id, ')
+          ..write('sourceKey: $sourceKey, ')
+          ..write('at: $at, ')
+          ..write('level: $level, ')
+          ..write('tag: $tag, ')
+          ..write('message: $message, ')
+          ..write('uri: $uri')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, sourceKey, at, level, tag, message, uri);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PluginLogRow &&
+          other.id == this.id &&
+          other.sourceKey == this.sourceKey &&
+          other.at == this.at &&
+          other.level == this.level &&
+          other.tag == this.tag &&
+          other.message == this.message &&
+          other.uri == this.uri);
+}
+
+class PluginLogsCompanion extends UpdateCompanion<PluginLogRow> {
+  final Value<int> id;
+  final Value<String> sourceKey;
+  final Value<DateTime> at;
+  final Value<String> level;
+  final Value<String> tag;
+  final Value<String> message;
+  final Value<String?> uri;
+  const PluginLogsCompanion({
+    this.id = const Value.absent(),
+    this.sourceKey = const Value.absent(),
+    this.at = const Value.absent(),
+    this.level = const Value.absent(),
+    this.tag = const Value.absent(),
+    this.message = const Value.absent(),
+    this.uri = const Value.absent(),
+  });
+  PluginLogsCompanion.insert({
+    this.id = const Value.absent(),
+    required String sourceKey,
+    required DateTime at,
+    required String level,
+    required String tag,
+    required String message,
+    this.uri = const Value.absent(),
+  }) : sourceKey = Value(sourceKey),
+       at = Value(at),
+       level = Value(level),
+       tag = Value(tag),
+       message = Value(message);
+  static Insertable<PluginLogRow> custom({
+    Expression<int>? id,
+    Expression<String>? sourceKey,
+    Expression<DateTime>? at,
+    Expression<String>? level,
+    Expression<String>? tag,
+    Expression<String>? message,
+    Expression<String>? uri,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sourceKey != null) 'source_key': sourceKey,
+      if (at != null) 'at': at,
+      if (level != null) 'level': level,
+      if (tag != null) 'tag': tag,
+      if (message != null) 'message': message,
+      if (uri != null) 'uri': uri,
+    });
+  }
+
+  PluginLogsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? sourceKey,
+    Value<DateTime>? at,
+    Value<String>? level,
+    Value<String>? tag,
+    Value<String>? message,
+    Value<String?>? uri,
+  }) {
+    return PluginLogsCompanion(
+      id: id ?? this.id,
+      sourceKey: sourceKey ?? this.sourceKey,
+      at: at ?? this.at,
+      level: level ?? this.level,
+      tag: tag ?? this.tag,
+      message: message ?? this.message,
+      uri: uri ?? this.uri,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (sourceKey.present) {
+      map['source_key'] = Variable<String>(sourceKey.value);
+    }
+    if (at.present) {
+      map['at'] = Variable<DateTime>(at.value);
+    }
+    if (level.present) {
+      map['level'] = Variable<String>(level.value);
+    }
+    if (tag.present) {
+      map['tag'] = Variable<String>(tag.value);
+    }
+    if (message.present) {
+      map['message'] = Variable<String>(message.value);
+    }
+    if (uri.present) {
+      map['uri'] = Variable<String>(uri.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PluginLogsCompanion(')
+          ..write('id: $id, ')
+          ..write('sourceKey: $sourceKey, ')
+          ..write('at: $at, ')
+          ..write('level: $level, ')
+          ..write('tag: $tag, ')
+          ..write('message: $message, ')
+          ..write('uri: $uri')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AeroDatabase extends GeneratedDatabase {
   _$AeroDatabase(QueryExecutor e) : super(e);
   $AeroDatabaseManager get managers => $AeroDatabaseManager(this);
@@ -3628,6 +4064,7 @@ abstract class _$AeroDatabase extends GeneratedDatabase {
       $ProviderHealthTableTable(this);
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   late final $IdMappingsTable idMappings = $IdMappingsTable(this);
+  late final $PluginLogsTable pluginLogs = $PluginLogsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3642,6 +4079,7 @@ abstract class _$AeroDatabase extends GeneratedDatabase {
     providerHealthTable,
     appSettings,
     idMappings,
+    pluginLogs,
   ];
   @override
   DriftDatabaseOptions get options =>
@@ -5626,6 +6064,238 @@ typedef $$IdMappingsTableProcessedTableManager =
       IdMappingRow,
       PrefetchHooks Function()
     >;
+typedef $$PluginLogsTableCreateCompanionBuilder =
+    PluginLogsCompanion Function({
+      Value<int> id,
+      required String sourceKey,
+      required DateTime at,
+      required String level,
+      required String tag,
+      required String message,
+      Value<String?> uri,
+    });
+typedef $$PluginLogsTableUpdateCompanionBuilder =
+    PluginLogsCompanion Function({
+      Value<int> id,
+      Value<String> sourceKey,
+      Value<DateTime> at,
+      Value<String> level,
+      Value<String> tag,
+      Value<String> message,
+      Value<String?> uri,
+    });
+
+class $$PluginLogsTableFilterComposer
+    extends Composer<_$AeroDatabase, $PluginLogsTable> {
+  $$PluginLogsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceKey => $composableBuilder(
+    column: $table.sourceKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get at => $composableBuilder(
+    column: $table.at,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get level => $composableBuilder(
+    column: $table.level,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tag => $composableBuilder(
+    column: $table.tag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get message => $composableBuilder(
+    column: $table.message,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uri => $composableBuilder(
+    column: $table.uri,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PluginLogsTableOrderingComposer
+    extends Composer<_$AeroDatabase, $PluginLogsTable> {
+  $$PluginLogsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceKey => $composableBuilder(
+    column: $table.sourceKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get at => $composableBuilder(
+    column: $table.at,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get level => $composableBuilder(
+    column: $table.level,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tag => $composableBuilder(
+    column: $table.tag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get message => $composableBuilder(
+    column: $table.message,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uri => $composableBuilder(
+    column: $table.uri,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PluginLogsTableAnnotationComposer
+    extends Composer<_$AeroDatabase, $PluginLogsTable> {
+  $$PluginLogsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceKey =>
+      $composableBuilder(column: $table.sourceKey, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get at =>
+      $composableBuilder(column: $table.at, builder: (column) => column);
+
+  GeneratedColumn<String> get level =>
+      $composableBuilder(column: $table.level, builder: (column) => column);
+
+  GeneratedColumn<String> get tag =>
+      $composableBuilder(column: $table.tag, builder: (column) => column);
+
+  GeneratedColumn<String> get message =>
+      $composableBuilder(column: $table.message, builder: (column) => column);
+
+  GeneratedColumn<String> get uri =>
+      $composableBuilder(column: $table.uri, builder: (column) => column);
+}
+
+class $$PluginLogsTableTableManager
+    extends
+        RootTableManager<
+          _$AeroDatabase,
+          $PluginLogsTable,
+          PluginLogRow,
+          $$PluginLogsTableFilterComposer,
+          $$PluginLogsTableOrderingComposer,
+          $$PluginLogsTableAnnotationComposer,
+          $$PluginLogsTableCreateCompanionBuilder,
+          $$PluginLogsTableUpdateCompanionBuilder,
+          (
+            PluginLogRow,
+            BaseReferences<_$AeroDatabase, $PluginLogsTable, PluginLogRow>,
+          ),
+          PluginLogRow,
+          PrefetchHooks Function()
+        > {
+  $$PluginLogsTableTableManager(_$AeroDatabase db, $PluginLogsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PluginLogsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PluginLogsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PluginLogsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> sourceKey = const Value.absent(),
+                Value<DateTime> at = const Value.absent(),
+                Value<String> level = const Value.absent(),
+                Value<String> tag = const Value.absent(),
+                Value<String> message = const Value.absent(),
+                Value<String?> uri = const Value.absent(),
+              }) => PluginLogsCompanion(
+                id: id,
+                sourceKey: sourceKey,
+                at: at,
+                level: level,
+                tag: tag,
+                message: message,
+                uri: uri,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String sourceKey,
+                required DateTime at,
+                required String level,
+                required String tag,
+                required String message,
+                Value<String?> uri = const Value.absent(),
+              }) => PluginLogsCompanion.insert(
+                id: id,
+                sourceKey: sourceKey,
+                at: at,
+                level: level,
+                tag: tag,
+                message: message,
+                uri: uri,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PluginLogsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AeroDatabase,
+      $PluginLogsTable,
+      PluginLogRow,
+      $$PluginLogsTableFilterComposer,
+      $$PluginLogsTableOrderingComposer,
+      $$PluginLogsTableAnnotationComposer,
+      $$PluginLogsTableCreateCompanionBuilder,
+      $$PluginLogsTableUpdateCompanionBuilder,
+      (
+        PluginLogRow,
+        BaseReferences<_$AeroDatabase, $PluginLogsTable, PluginLogRow>,
+      ),
+      PluginLogRow,
+      PrefetchHooks Function()
+    >;
 
 class $AeroDatabaseManager {
   final _$AeroDatabase _db;
@@ -5648,4 +6318,6 @@ class $AeroDatabaseManager {
       $$AppSettingsTableTableManager(_db, _db.appSettings);
   $$IdMappingsTableTableManager get idMappings =>
       $$IdMappingsTableTableManager(_db, _db.idMappings);
+  $$PluginLogsTableTableManager get pluginLogs =>
+      $$PluginLogsTableTableManager(_db, _db.pluginLogs);
 }

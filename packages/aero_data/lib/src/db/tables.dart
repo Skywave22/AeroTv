@@ -130,3 +130,22 @@ class IdMappings extends Table {
   @override
   Set<Column> get primaryKey => {key};
 }
+
+/// Per-plugin diagnostic log, persisted so a crash or a failed play can be
+/// inspected after the fact. The in-memory AeroLog ring buffer is global and
+/// loses everything on restart; this is scoped to one source and survives.
+///
+/// Rows are capped per source by [PluginLogRepository] and removed entirely on
+/// uninstall, so a chatty plugin cannot grow the database without bound.
+@DataClassName('PluginLogRow')
+class PluginLogs extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get sourceKey => text()();
+  DateTimeColumn get at => dateTime()();
+  TextColumn get level => text()();
+  TextColumn get tag => text()();
+  TextColumn get message => text()();
+
+  /// Redacted destination, when the entry describes a network call.
+  TextColumn get uri => text().nullable()();
+}

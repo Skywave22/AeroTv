@@ -19,6 +19,7 @@ part 'database.g.dart';
   ProviderHealthTable,
   AppSettings,
   IdMappings,
+  PluginLogs,
 ])
 class AeroDatabase extends _$AeroDatabase {
   AeroDatabase(super.executor);
@@ -35,7 +36,7 @@ class AeroDatabase extends _$AeroDatabase {
   factory AeroDatabase.memory() => AeroDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -84,6 +85,11 @@ class AeroDatabase extends _$AeroDatabase {
                 "WHERE typeof(${e.value}) = 'integer'",
               );
             }
+          }
+          // v2 -> v3: per-plugin diagnostic log. Additive only, so existing
+          // installs keep their library, history and cached catalogues.
+          if (from < 3) {
+            await m.createTable(pluginLogs);
           }
           // Future migrations go here, guarded by `from`.
         },
