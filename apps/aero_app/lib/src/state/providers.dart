@@ -41,6 +41,10 @@ final cacheRepoProvider = Provider<CacheRepository>(
   (ref) => CacheRepository(ref.watch(databaseProvider)),
 );
 
+/// Resolves a repository URL or shortcode, with the SSRF guard applied to the
+/// address it resolves to.
+final repoLinkServiceProvider = Provider<RepoLinkService>((ref) => RepoLinkService());
+
 final pluginLogRepoProvider = Provider<PluginLogRepository>(
   (ref) => PluginLogRepository(ref.watch(databaseProvider)),
 );

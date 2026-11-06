@@ -7,6 +7,7 @@ library;
 
 export 'src/js_host.dart';
 export 'src/ip_guard.dart';
+export 'src/repo_link_service.dart';
 export 'src/js_sandbox_policy.dart';
 export 'src/flutter_js_engine.dart';
 export 'src/js_worker.dart';

@@ -199,6 +199,10 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
         _ => 'https://example.com/manifest.json',
       };
 
+  /// Shortcodes exist only where the upstream contract defines them; offering
+  /// the field elsewhere would resolve to a stranger's link.
+  bool get _acceptsCode => ShortcodeResolver.supportsShortcodes(_selected);
+
   Future<void> _showAddDialog(BuildContext context) async {
     final controller = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -247,8 +251,12 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                   ],
                   Text(
                     asRepo
-                        ? 'Paste the repository index. You will be able to pick '
-                            'which plugins to install.'
+                        ? (_acceptsCode
+                            ? 'Paste the repository index, or enter its '
+                                'shortcode. You will be able to pick which '
+                                'plugins to install.'
+                            : 'Paste the repository index. You will be able to '
+                                'pick which plugins to install.')
                         : _emptyHint(_selected),
                     style: Theme.of(dialogContext).textTheme.bodySmall,
                   ),
@@ -258,12 +266,19 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                     autofocus: true,
                     keyboardType: TextInputType.url,
                     decoration: InputDecoration(
-                      labelText: asRepo ? 'Repository URL' : 'Plugin URL',
+                      labelText: asRepo && _acceptsCode
+                          ? 'Repository URL or shortcode'
+                          : asRepo
+                              ? 'Repository URL'
+                              : 'Plugin URL',
                       hintText: asRepo ? _repoHint : _emptyHint(_selected),
                       errorText: error,
                     ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Enter a URL' : null,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? (_acceptsCode && asRepo
+                            ? 'Enter a URL or code'
+                            : 'Enter a URL')
+                        : null,
                   ),
                   const SizedBox(height: 10),
                   Row(
@@ -310,8 +325,27 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                       if (adapter == null) return;
 
                       if (asRepo && adapter is RepositorySource) {
+                        // A shortcode is an untrusted redirect and the repo it
+                        // points at is code we will run, so resolve and guard
+                        // before anything is fetched.
+                        final String repoUrl;
+                        String? shortLink;
+                        try {
+                          final resolved = await ref
+                              .read(repoLinkServiceProvider)
+                              .resolve(url, ecosystem: _selected);
+                          repoUrl = resolved.url;
+                          shortLink = resolved.shortLink;
+                        } on ShortcodeException catch (e) {
+                          if (!dialogContext.mounted) return;
+                          setDialogState(() {
+                            busy = false;
+                            error = e.message;
+                          });
+                          return;
+                        }
                         final res = await (adapter as RepositorySource)
-                            .fetchRepository(url);
+                            .fetchRepository(repoUrl);
                         if (!dialogContext.mounted) return;
                         if (res.isErr) {
                           setDialogState(() {
@@ -325,7 +359,8 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                           await _showRepoPicker(
                             this.context,
                             res.valueOrNull!,
-                            url,
+                            repoUrl,
+                            shortLink: shortLink,
                           );
                         }
                         return;
@@ -380,8 +415,9 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
   Future<void> _showRepoPicker(
     BuildContext context,
     List<SourceRef> refs,
-    String repoUrl,
-  ) async {
+    String repoUrl, {
+    String? shortLink,
+  }) async {
     final installed =
         ref.read(installedSourcesProvider).valueOrNull ?? const [];
     final installedKeys = installed.map(_installedKey).toSet();
@@ -408,13 +444,23 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Show which address a code actually resolved to, so the
+                  // user can see what they are about to install from.
                   Text(
-                    repoUrl,
+                    UrlRedactor.redact(repoUrl),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: AeroColors.textTertiary),
                   ),
+                  if (shortLink != null)
+                    Text(
+                      'via $shortLink',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(color: AeroColors.textTertiary),
+                    ),
                   const SizedBox(height: 8),
                   Row(
                     children: [

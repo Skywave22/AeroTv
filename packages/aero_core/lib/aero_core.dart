@@ -19,6 +19,7 @@ export 'src/resolver/stream_resolver.dart';
 export 'src/resolver/stream_ranker.dart';
 export 'src/diagnostics/adapter_diagnostics.dart';
 export 'src/diagnostics/plugin_diagnostics.dart';
+export 'src/repo/shortcode_resolver.dart';
 export 'src/resolver/circuit_breaker.dart';
 export 'src/resolver/ranking_rules.dart';
 export 'src/metadata/metadata_resolver.dart';
