@@ -88,7 +88,7 @@ reason rather than silently missing.
 - **Android TV** — leanback launcher, banner, D-pad focus with per-row memory,
   overscan margin, remote key mapping.
 
-**188 automated tests** cover the core models, ranking, resolver, Stremio
+**323 automated tests** cover the core models, ranking, resolver, Stremio
 protocol, database (including the v1→v2 migration), backup, the JS sandbox
 policy, adaptive TV layout and the app's widget tree. `dart analyze
 --fatal-infos` is clean across the whole workspace.

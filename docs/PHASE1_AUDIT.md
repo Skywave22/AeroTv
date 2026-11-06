@@ -1,6 +1,6 @@
 # Phase 1 audit — plan vs. what is actually built
 
-> **Update 2026-11-06:** G1, G2 and G3 are now **fixed** — see
+> **Update 2026-11-06:** all four work items are **done and CI-verified** — see
 > [Progress](#progress) at the bottom. The findings below are preserved as the
 > original record.
 
@@ -177,3 +177,52 @@ on both `CatalogDescriptor` and `CatalogRow`. `isHomeEligible` exempts `skip` an
    `searchable`, `genres` and `requiredExtras` on every launch after the first.
    The parser now accepts both shapes. This would have silently broken Home
    eligibility and search once G1 landed.
+
+
+### Item 3 — add-from-phone TV pairing ✅
+
+The QR flow was a placeholder that said outright "Aero TV does not run a
+pairing server". It now runs one (`PairingServer` in `aero_data`):
+
+* ephemeral port, self-contained HTML form (no external CSS/fonts, because the
+  phone may have no internet route while on the TV's LAN);
+* a 128-bit `Random.secure` token in the QR, required on every request;
+* single use — closes on the first accepted URL, or after 5 minutes, or when
+  the dialog is dismissed;
+* only absolute http/https URLs; `javascript:`, `file:`, `data:` and hostless
+  URLs are rejected;
+* the submitted URL goes through the normal install path, so manifest
+  validation and the `configurationRequired` check still apply.
+
+12 tests cover the token gate, single-use close, expiry and invalid schemes.
+
+### Item 4 — polish ✅ (one deliberate exception)
+
+| Gap | Status |
+|---|---|
+| Credential masking in logs | ✅ `UrlRedactor` at the `AeroLog.add` choke point; 14 tests |
+| Resume prompt | ✅ "Resume 34:12 / Start over", Resume autofocused for remote use |
+| Licences page | ✅ Settings → About → Open-source licences |
+| `stremio://` deep links | ✅ MainActivity forwards VIEW intents; `DeepLinkService` normalises and re-checks the scheme; 6 tests |
+| Voice search (`speech_to_text`) | ⏭ Deferred — needs a new native plugin and a mic permission; not a correctness gap |
+| Opt-in Sentry | ⏭ Deferred — off by default anyway, and adds a network dependency |
+| `integration_test` / goldens | ⏭ Deferred — needs an emulator in CI |
+| `dev`/`alpha`/`prod` flavors | ⏭ **Deliberately not added** — see below |
+
+**On flavors.** The plan asks for three flavors that change the applicationId
+suffix. Two reasons to hold: the neutral ID `app.orbit.media` is already fixed
+and must not drift, and three flavors would triple the APK build matrix on every
+push. Flavors are a release-channel decision, not a Phase 1 correctness gap —
+worth doing when there is an actual alpha channel to publish to.
+
+### Verification
+
+CI `42195946284` and Build APK `42195946481` both green on `04342b8`.
+
+* **323 tests** across 9 suites (was 188).
+* Coverage gate enforced in CI: **aero_core 78.8%**, **eco_stremio 78.8%**.
+* `dart analyze --fatal-infos` clean across the workspace.
+
+Exit criteria 1 and 6 are now addressed in code and locked by tests. Criteria 2
+and 3 still need a run on real hardware — the D-pad tests prove the focus system
+responds to a remote, but they are not a substitute for a Fire Stick.
