@@ -12,3 +12,4 @@ export 'src/repos/tmdb_id_lookup.dart';
 export 'src/settings/settings_repository.dart';
 export 'src/settings/secure_credentials.dart';
 export 'src/backup_service.dart';
+export 'src/pairing/pairing_server.dart';

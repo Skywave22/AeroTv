@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:aero_core/aero_core.dart';
+import 'package:aero_data/aero_data.dart';
 import 'package:aero_ui/aero_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -566,62 +569,125 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
     );
   }
 
-  /// TV-friendly flow: show a QR so the user can open the add-on URL on a
-  /// phone, then paste/confirm it here. Typing long URLs with a remote is
-  /// painful, so this is the primary path on TV.
+  /// Add-from-phone: run a short-lived LAN server, show a QR, and let the phone
+  /// post the add-on URL back. Typing a manifest URL with a remote is painful,
+  /// so this is the primary path on TV.
+  ///
+  /// The server is single-use and token-gated, and is always shut down when the
+  /// dialog closes — whether by success, cancellation or timeout.
   Future<void> _showQrFlow(BuildContext context) async {
+    PairingSession? session;
+    String? startError;
+    try {
+      session = await PairingServer.start();
+    } catch (e) {
+      startError = '$e';
+    }
+    if (!mounted) {
+      await session?.close();
+      return;
+    }
+
+    final pairing = session;
+    StreamSubscription<String>? sub;
+
     await showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add from your phone'),
-        content: SizedBox(
-          width: 340,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Typing long URLs with a remote is painful. Scan this code on '
-                'your phone to open the Extensions page, then use Paste here.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: QrImageView(
-                  data: 'aerotv://extensions/add?eco=${_selected.id}',
-                  size: 190,
-                  version: QrVersions.auto,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Aero TV does not run a pairing server. The code simply opens '
-                'this screen; your add-on URL is never sent anywhere by us.',
-                style: Theme.of(context).textTheme.labelSmall,
-                textAlign: TextAlign.center,
-              ),
-            ],
+      builder: (dialogContext) {
+        // Hand the URL to the normal install path so validation, the
+        // configurationRequired check and the confirm dialog all still apply.
+        sub ??= pairing?.submissions.listen((url) async {
+          if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+          if (!mounted) return;
+          final adapter =
+              ref.read(adapterRegistryProvider).forEcosystem(_selected);
+          if (adapter == null) return;
+          final res = await adapter.install(SourceRef(
+            ecosystem: _selected,
+            url: url,
+          ));
+          if (!mounted) return;
+          ref.invalidate(installedSourcesProvider);
+          ref.invalidate(homeRowsProvider);
+          ScaffoldMessenger.of(this.context).showSnackBar(
+            SnackBar(
+              content: Text(res.isOk
+                  ? 'Installed ${res.valueOrNull!.name}'
+                  : 'Could not install: ${res.errorOrNull}'),
+            ),
+          );
+        });
+
+        final theme = Theme.of(dialogContext);
+        return AlertDialog(
+          title: const Text('Add from your phone'),
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (startError != null)
+                  Text(
+                    'Could not start pairing.\n$startError',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  )
+                else ...[
+                  const Text(
+                    'Scan this with your phone, paste the add-on URL there, and '
+                    'it will appear here for confirmation.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: QrImageView(
+                      data: pairing!.url,
+                      size: 190,
+                      version: QrVersions.auto,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SelectableText(
+                    pairing.url.split('?').first,
+                    style: theme.textTheme.titleSmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Both devices must be on the same Wi-Fi network. The link '
+                    'works once and expires after 5 minutes. Aero TV provides '
+                    'no content and no sources.',
+                    style: theme.textTheme.labelSmall,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _showAddDialog(context);
-            },
-            child: const Text('Paste URL'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _showAddDialog(this.context);
+              },
+              child: const Text('Type it instead'),
+            ),
+          ],
+        );
+      },
     );
+
+    await sub?.cancel();
+    await pairing?.close();
   }
 }
 
