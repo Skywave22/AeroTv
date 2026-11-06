@@ -14,12 +14,20 @@ enum DiagnosticStatus { pass, warn, fail, skipped }
 
 /// What a probe reports back when it succeeds.
 class ProbeResult {
-  const ProbeResult({this.count, this.detail});
+  const ProbeResult({this.count, this.detail, this.skipReason});
+
+  /// A probe that could not meaningfully run — e.g. "browse" when the plugin
+  /// returned no catalogues. Reported as skipped, never as a failure.
+  const ProbeResult.skip(String reason)
+      : count = null,
+        detail = null,
+        skipReason = reason;
 
   /// How many items came back. Zero is a warning, not a failure: the plugin
   /// answered correctly, it just had nothing.
   final int? count;
   final String? detail;
+  final String? skipReason;
 }
 
 typedef DiagnosticProbe = Future<ProbeResult> Function();
@@ -135,10 +143,14 @@ abstract final class PluginDiagnostics {
         final empty = r.count != null && r.count == 0;
         steps.add(DiagnosticStep(
           name: entry.key,
-          status: empty ? DiagnosticStatus.warn : DiagnosticStatus.pass,
+          status: r.skipReason != null
+              ? DiagnosticStatus.skipped
+              : empty
+                  ? DiagnosticStatus.warn
+                  : DiagnosticStatus.pass,
           elapsed: sw.elapsed,
           count: r.count,
-          detail: r.detail,
+          detail: r.skipReason ?? r.detail,
         ));
       } catch (e) {
         sw.stop();

@@ -76,4 +76,23 @@ abstract final class CacheKeys {
 
   static String meta(String ecosystem, String sourceId, String type, String id) =>
       '$ecosystem:meta:$sourceId:$type:$id';
+
+  /// Every cache key owned by one source, as SQL LIKE patterns for uninstall.
+  ///
+  /// Enumerating the known kinds rather than matching `eco:%` is deliberate:
+  /// a source id can itself contain a colon, so a looser pattern would delete
+  /// another source's rows. `%` and `_` inside the id are escaped so they
+  /// cannot act as wildcards; callers must use `ESCAPE '\'`.
+  static List<String> uninstallPatterns(String ecosystem, String sourceId) {
+    final id = sourceId
+        .replaceAll('\\', '\\\\')
+        .replaceAll('%', '\\%')
+        .replaceAll('_', '\\_');
+    return [
+      '$ecosystem:manifest:$id',
+      '$ecosystem:catalog:$id:%',
+      '$ecosystem:meta:$id:%',
+      '$ecosystem:streams:$id:%',
+    ];
+  }
 }

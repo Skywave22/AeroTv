@@ -6,8 +6,10 @@ import 'package:aero_ui/aero_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../routing/app_router.dart';
 import '../state/providers.dart';
 
 /// Extensions Manager: one section per ecosystem, each with its own manager.
@@ -782,6 +784,7 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
                   onSelected: (v) => _onMenu(v),
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'health', child: Text('Health check')),
+                    PopupMenuItem(value: 'diagnose', child: Text('Diagnostics')),
                     PopupMenuItem(value: 'update', child: Text('Check for update')),
                     PopupMenuItem(value: 'copy', child: Text('Copy URL')),
                     PopupMenuItem(value: 'remove', child: Text('Remove')),
@@ -818,6 +821,8 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
             err: (e) => e.length > 40 ? '${e.substring(0, 40)}…' : e,
           );
         });
+      case 'diagnose':
+        context.push('${Routes.settings}/diagnostics', extra: s);
       case 'update':
         setState(() { _busy = true; _status = null; });
         final res = await adapter.checkUpdate(s.id);

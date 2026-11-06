@@ -9,6 +9,7 @@ import '../screens/browse_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/logs_screen.dart';
+import '../screens/source_diagnostics_screen.dart';
 import '../screens/providers_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/settings_screen.dart';
@@ -25,6 +26,7 @@ class Routes {
   static const settings = '/settings';
   static const extensions = '/extensions';
   static const logs = '/logs';
+  static const diagnostics = '/diagnostics';
   static const details = '/details';
 }
 
@@ -108,6 +110,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     path: 'logs',
                     parentNavigatorKey: _rootKey,
                     builder: (context, state) => const LogsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'diagnostics',
+                    parentNavigatorKey: _rootKey,
+                    builder: (context, state) {
+                      final extra = state.extra;
+                      return SourceDiagnosticsScreen(
+                        source: extra is InstalledSource ? extra : null,
+                        sourceId: state.uri.queryParameters['id'],
+                        ecosystemId: state.uri.queryParameters['eco'],
+                      );
+                    },
                   ),
                 ],
               ),

@@ -41,6 +41,18 @@ final cacheRepoProvider = Provider<CacheRepository>(
   (ref) => CacheRepository(ref.watch(databaseProvider)),
 );
 
+final pluginLogRepoProvider = Provider<PluginLogRepository>(
+  (ref) => PluginLogRepository(ref.watch(databaseProvider)),
+);
+
+final matchRepoProvider = Provider<MatchRepository>(
+  (ref) => MatchRepository(ref.watch(databaseProvider)),
+);
+
+/// Per-source circuit breaker. In-memory and session-scoped by design, so a
+/// restart never inherits a stale "this host is down" verdict.
+final circuitBreakerProvider = Provider<CircuitBreaker>((ref) => CircuitBreaker());
+
 final backupServiceProvider = Provider<BackupService>((ref) => BackupService(
       db: ref.watch(databaseProvider),
       sources: ref.watch(sourceRepoProvider),

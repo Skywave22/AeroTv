@@ -4,6 +4,8 @@ import 'package:aero_core/aero_core.dart';
 import 'package:drift/drift.dart';
 
 import '../db/database.dart';
+import 'match_repository.dart';
+import 'plugin_log_repository.dart';
 
 /// CRUD for repositories and installed sources across all ecosystems.
 ///
@@ -35,9 +37,35 @@ class SourceRepository {
     await db.into(db.installedSources).insertOnConflictUpdate(_sourceToRow(s));
   }
 
+  /// Uninstalls a source and removes everything it owned.
+  ///
+  /// Phase 2 requires uninstall to take code, cache, logs and config with it.
+  /// The row deletion alone left cached catalogues, health counters, match
+  /// decisions and diagnostic logs behind, so re-adding a plugin inherited a
+  /// previous install's state.
   Future<void> delete(Ecosystem ecosystem, String id) async {
+    final key = '${ecosystem.id}:$id';
     await (db.delete(db.installedSources)
           ..where((t) => t.id.equals(id) & t.ecosystem.equals(ecosystem.id)))
+        .go();
+    await _purgeOwned(ecosystem, id, key);
+  }
+
+  Future<void> _purgeOwned(Ecosystem ecosystem, String id, String key) async {
+    // Cached manifests, catalogues, meta and streams.
+    for (final pattern in CacheKeys.uninstallPatterns(ecosystem.id, id)) {
+      await db.customStatement(
+        "DELETE FROM media_cache WHERE key LIKE ? ESCAPE '\\'",
+        [pattern],
+      );
+    }
+    // Match decisions (including the user's pinned corrections).
+    await MatchRepository(db).forgetSource(key);
+    // Diagnostic log.
+    await PluginLogRepository(db).clearSource(key);
+    // Health counters, so a re-install starts from a clean slate.
+    await (db.delete(db.providerHealthTable)
+          ..where((t) => t.sourceKey.equals(key)))
         .go();
   }
 
@@ -175,9 +203,15 @@ class SourceRepository {
     await (db.delete(db.repositories)
           ..where((t) => t.id.equals(id) & t.ecosystem.equals(ecosystem.id)))
         .go();
-    // Orphaned sources from that repo are removed too.
+    // Orphaned sources from that repo are removed too, with their data.
+    final orphans = await (db.select(db.installedSources)
+          ..where((t) => t.repoId.equals(id) & t.ecosystem.equals(ecosystem.id)))
+        .get();
     await (db.delete(db.installedSources)
           ..where((t) => t.repoId.equals(id) & t.ecosystem.equals(ecosystem.id)))
         .go();
+    for (final o in orphans) {
+      await _purgeOwned(ecosystem, o.id, '${ecosystem.id}:${o.id}');
+    }
   }
 }
