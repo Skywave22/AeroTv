@@ -125,7 +125,9 @@ class JsPluginHost {
     final p = Map<String, dynamic>.from(req['payload'] as Map? ?? const {});
     final url = (p['url'] ?? '').toString();
 
-    final blocked = policy.validateUrl(url);
+    // Resolve-then-check closes DNS rebinding: a public name that points at
+    // 192.168.1.1 must be refused, not just a private literal.
+    final blocked = await policy.validateUrlResolved(url);
     if (blocked != null) {
       AeroLog.instance.w('js:$pluginName', 'BLOCKED $url — $blocked');
       _resolve(id, false, blocked);

@@ -1,3 +1,5 @@
+import 'ip_guard.dart';
+
 /// Resource limits and permissions for one plugin context.
 class JsSandboxPolicy {
   const JsSandboxPolicy({
@@ -19,6 +21,7 @@ class JsSandboxPolicy {
     ],
     this.allowInsecureHttp = true,
     this.maxRedirects = 5,
+    this.resolveDns = true,
   });
 
   final int memoryLimitBytes;
@@ -36,6 +39,9 @@ class JsSandboxPolicy {
   final bool allowInsecureHttp;
   final int maxRedirects;
 
+  /// Resolve hostnames and refuse private answers (DNS-rebinding defence).
+  final bool resolveDns;
+
   /// Validates a plugin-requested URL. Returns null when allowed, or a
   /// human-readable reason when blocked.
   String? validateUrl(String raw) {
@@ -49,21 +55,37 @@ class JsSandboxPolicy {
     }
     final host = uri.host.toLowerCase();
     if (host.isEmpty) return 'Missing host';
+
+    // Real CIDR / IPv6 matching. The old string-prefix check let 10.1.x.x
+    // through a 10.0.0.0/8 block and had no 172.16.0.0/12 entry at all.
+    final ipBlocked = IpGuard.checkLiteral(host);
+    if (ipBlocked != null) return ipBlocked;
+
     for (final blocked in blockedHosts) {
-      if (blocked.contains('/')) {
-        // CIDR-ish prefix guard for private ranges.
-        final prefix = blocked.split('/').first;
-        final octets = prefix.split('.').take(2).join('.');
-        if (host.startsWith(octets)) return 'Private network access is blocked';
-      } else if (host == blocked || host.endsWith('.$blocked')) {
-        return 'Host "$host" is blocked';
-      }
+      // CIDR entries are handled by IpGuard above; only names remain here.
+      if (blocked.contains('/')) continue;
+      final b = blocked.toLowerCase();
+      if (host == b || host.endsWith('.$b')) return 'Host "$host" is blocked';
     }
-    // Block obvious local hostnames.
     if (host.endsWith('.local') || host.endsWith('.internal')) {
       return 'Local network access is blocked';
     }
+    if (host == 'metadata.google.internal' || host == 'metadata') {
+      return 'Cloud metadata access is blocked';
+    }
     return null;
+  }
+
+  /// Full guard including DNS resolution, so a public hostname pointing at a
+  /// private address (DNS rebinding) is refused too.
+  ///
+  /// Call this before connecting. [validateUrl] stays synchronous for cheap
+  /// literal checks and for callers that cannot await.
+  Future<String?> validateUrlResolved(String raw) async {
+    final basic = validateUrl(raw);
+    if (basic != null) return basic;
+    if (!resolveDns) return null;
+    return IpGuard.checkResolved(Uri.parse(raw).host);
   }
 
   JsSandboxPolicy copyWith({
@@ -84,5 +106,6 @@ class JsSandboxPolicy {
         blockedHosts: blockedHosts,
         allowInsecureHttp: allowInsecureHttp ?? this.allowInsecureHttp,
         maxRedirects: maxRedirects,
+        resolveDns: resolveDns,
       );
 }

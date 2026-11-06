@@ -6,6 +6,7 @@
 library;
 
 export 'src/js_host.dart';
+export 'src/ip_guard.dart';
 export 'src/js_sandbox_policy.dart';
 export 'src/host_api_shim.dart';
 export 'src/js_plugin_bundle.dart';
