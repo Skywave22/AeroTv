@@ -8,6 +8,8 @@ library;
 export 'src/js_host.dart';
 export 'src/ip_guard.dart';
 export 'src/js_sandbox_policy.dart';
+export 'src/flutter_js_engine.dart';
+export 'src/js_worker.dart';
 export 'src/host_api_shim.dart';
 export 'src/js_plugin_bundle.dart';
 export 'src/js_source_manager.dart';
