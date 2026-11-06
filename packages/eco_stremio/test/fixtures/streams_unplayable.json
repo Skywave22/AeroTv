@@ -1,0 +1,4 @@
+{"streams":[
+ {"name":"Torrent 1080p","infoHash":"dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c","behaviorHints":{"videoSize":2147483648}},
+ {"name":"YouTube trailer","ytId":"dQw4w9WgXcQ"},
+ {"name":"External site","externalUrl":"https://watch.example/title"}]}

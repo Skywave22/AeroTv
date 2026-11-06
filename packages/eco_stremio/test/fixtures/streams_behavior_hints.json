@@ -1,0 +1,8 @@
+{"streams":[
+ {"name":"Example\n1080p","title":"Example.1080p.BluRay.x264\n4.2 GB\nEnglish",
+  "url":"https://cdn.example/movie1080.mp4",
+  "behaviorHints":{"bingeGroup":"example-1080","videoSize":4509715660,"filename":"Example.1080p.BluRay.x264.mkv"},
+  "subtitles":[{"id":"sub_en","url":"https://subs.example/en.srt","lang":"eng"},{"id":"sub_es","url":"https://subs.example/es.vtt","lang":"spa"}]},
+ {"name":"Proxied 4K HDR","title":"2160p HDR DV 12.4 GB","url":"https://cdn.example/movie4k.mkv",
+  "behaviorHints":{"proxyHeaders":{"request":{"Referer":"https://referer.example/","User-Agent":"Custom/1.0"}},"notWebReady":true}},
+ {"name":"HLS stream","url":"https://cdn.example/master.m3u8","behaviorHints":{"bingeGroup":"example-hls"}}]}

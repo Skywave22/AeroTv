@@ -1,0 +1,12 @@
+{"id":"org.example.mixed","version":"0.4.2","name":"Mixed Resources Addon",
+"types":["movie","series","channel"],
+"resources":[
+ {"name":"catalog","types":["movie"],"idPrefixes":["tt"]},
+ {"name":"meta","types":["movie","series"],"idPrefixes":["tt"]},
+ {"name":"stream","types":["movie"],"idPrefixes":["tt"]},
+ {"name":"subtitles","types":["movie","series"],"idPrefixes":["tt"]}],
+"catalogs":[
+ {"type":"movie","id":"search-only","name":"Search","extra":[{"name":"search","isRequired":true}]},
+ {"type":"movie","id":"genre-only","name":"By Genre","extra":[{"name":"genre","isRequired":true,"options":["Action"]}]},
+ {"type":"movie","id":"trending","name":"Trending"}],
+"behaviorHints":{"adult":false,"p2p":false}}

@@ -1,0 +1,8 @@
+{"id":"com.linvo.cinemeta","version":"3.1.0","name":"Cinemeta",
+"description":"The official addon for movie and series metadata",
+"logo":"https://cinemeta.strem.io/logo.png","types":["movie","series"],
+"resources":["catalog","meta"],"idPrefixes":["tt"],
+"catalogs":[
+ {"type":"movie","id":"top","name":"Popular","extra":[{"name":"genre","options":["Action","Drama","Comedy"]},{"name":"search"},{"name":"skip"}]},
+ {"type":"series","id":"top","name":"Popular Series","extra":[{"name":"genre","options":["Drama"]},{"name":"skip"}]},
+ {"type":"movie","id":"imdbRating","name":"Featured","extra":[{"name":"skip"}]}]}
