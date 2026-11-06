@@ -5,75 +5,68 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../routing/app_router.dart';
 import '../state/providers.dart';
-import '../widgets/hero_from_row.dart';
 
-/// Browse — one plugin's own world.
+/// Browse — the extension list.
 ///
-/// Home merges every ecosystem into one feed. Browse does the opposite: you
-/// pick a single plugin and see *its* categories, *its* hero and *its*
-/// ordering, exactly as that ecosystem's own app presents it.
+/// A section per ecosystem with that ecosystem's providers underneath, the way
+/// SkyStream presents its own extensions: SkyStream first, then Vega, then
+/// CloudStream. Tapping a provider opens its own page with its own hero and
+/// categories.
 ///
-/// Plugins that cannot supply a home feed (Nuvio scrapers are streams-only)
-/// are listed separately with the reason, rather than silently missing.
-class BrowseScreen extends ConsumerStatefulWidget {
+/// Empty sections are still shown, with an add action, so an ecosystem is
+/// discoverable before anything is installed. CloudStream is listed as
+/// "Beta soon" rather than hidden or faked. Streams-only scrapers are listed to
+/// explain where they do appear.
+class BrowseScreen extends ConsumerWidget {
   const BrowseScreen({super.key});
 
   @override
-  ConsumerState<BrowseScreen> createState() => _BrowseScreenState();
-}
-
-class _BrowseScreenState extends ConsumerState<BrowseScreen> {
-  final _focusMemory = RowFocusMemory();
-
-  @override
-  void dispose() {
-    _focusMemory.clear();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isTv = ref.watch(isTvProvider);
-    final ui = ref.watch(uiSettingsProvider);
     final formFactor = Adaptive.detect(context, isTv: isTv);
-    final sourcesAsync = ref.watch(browsableSourcesProvider);
+    final sourcesAsync = ref.watch(installedSourcesProvider);
+    final registry = ref.watch(adapterRegistryProvider);
+
+    final unavailable = <Ecosystem, String>{
+      for (final eco in Ecosystem.values)
+        if (registry.forEcosystem(eco) case final adapter?)
+          if (!adapter.isAvailable)
+            eco: adapter.unavailableReason ?? 'Not available on this platform',
+    };
 
     return Scaffold(
       body: sourcesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => EmptyState(
           icon: Icons.error_outline_rounded,
-          title: 'Could not load your plugins',
+          title: 'Could not load your providers',
           message: '$e',
           actionLabel: 'Retry',
-          onAction: () => ref.invalidate(browsableSourcesProvider),
+          onAction: () => ref.invalidate(installedSourcesProvider),
         ),
         data: (sources) {
-          if (sources.isEmpty) return const _NoBrowsablePlugins();
-
-          final selected = ref.watch(browseSelectionProvider);
-          final activeId =
-              sources.any((s) => s.id == selected) ? selected! : sources.first.id;
-
-          return Column(
-            children: [
-              _PluginPicker(
-                sources: sources,
-                activeId: activeId,
-                formFactor: formFactor,
-                onSelect: (id) =>
-                    ref.read(browseSelectionProvider.notifier).state = id,
-              ),
-              Expanded(
-                child: _PluginBody(
-                  sourceId: activeId,
-                  formFactor: formFactor,
-                  isTv: isTv,
-                  rotationSeconds: ui.heroRotationSeconds,
-                  focusMemory: _focusMemory,
-                ),
-              ),
-            ],
+          final sections = ProviderDirectory.build(
+            sources,
+            unavailable: unavailable,
+          );
+          final pad = Adaptive.pagePadding(formFactor);
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(installedSourcesProvider);
+              await ref.read(installedSourcesProvider.future);
+            },
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(pad, 12, pad, 40),
+              children: [
+                for (final section in sections)
+                  _Section(
+                    section: section,
+                    formFactor: formFactor,
+                    canOpen: (s) =>
+                        ProviderDirectory.canOpen(s, unavailable: unavailable),
+                  ),
+              ],
+            ),
           );
         },
       ),
@@ -81,267 +74,216 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
   }
 }
 
-/// Horizontal plugin selector. On TV it is D-pad traversable and each chip
-/// carries its ecosystem colour so the active world is always obvious.
-class _PluginPicker extends StatelessWidget {
-  const _PluginPicker({
-    required this.sources,
-    required this.activeId,
+class _Section extends StatelessWidget {
+  const _Section({
+    required this.section,
     required this.formFactor,
-    required this.onSelect,
+    required this.canOpen,
   });
 
-  final List<InstalledSource> sources;
-  final String activeId;
+  final ProviderSection section;
   final FormFactor formFactor;
-  final ValueChanged<String> onSelect;
+  final bool Function(InstalledSource) canOpen;
 
   @override
   Widget build(BuildContext context) {
-    final tv = formFactor == FormFactor.tv;
-    return SizedBox(
-      height: tv ? 76 : 62,
-      child: FocusTraversalGroup(
-        policy: OrderedTraversalPolicy(),
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.fromLTRB(
-            Adaptive.pagePadding(formFactor),
-            tv ? 16 : 10,
-            Adaptive.pagePadding(formFactor),
-            tv ? 16 : 10,
-          ),
-          itemCount: sources.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 10),
-          itemBuilder: (context, i) {
-            final s = sources[i];
-            final selected = s.id == activeId;
-            return TvFocus(
-              borderRadius: 24,
-              child: ChoiceChip(
-                selected: selected,
-                onSelected: (_) => onSelect(s.id),
-                avatar: CircleAvatar(
-                  radius: 9,
-                  backgroundColor: Color(s.ecosystem.colorSeed),
-                ),
-                label: Text(
-                  s.name,
-                  style: TextStyle(fontSize: tv ? 17 : 14),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
+    final theme = Theme.of(context);
+    final eco = section.ecosystem;
+    final tint = Color(eco.colorSeed);
 
-class _PluginBody extends ConsumerWidget {
-  const _PluginBody({
-    required this.sourceId,
-    required this.formFactor,
-    required this.isTv,
-    required this.rotationSeconds,
-    required this.focusMemory,
-  });
-
-  final String sourceId;
-  final FormFactor formFactor;
-  final bool isTv;
-  final int rotationSeconds;
-  final RowFocusMemory focusMemory;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(pluginHomeProvider(sourceId));
-    final pad = Adaptive.pagePadding(formFactor);
-
-    return async.when(
-      loading: () => ListView(
-        padding: EdgeInsets.symmetric(horizontal: pad, vertical: 12),
-        children: [
-          Shimmer(
-            height: formFactor == FormFactor.phone ? 200 : 320,
-            radius: 16,
-          ),
-          const SizedBox(height: 24),
-          for (var i = 0; i < 2; i++) ...[
-            const Shimmer(width: 160, height: 18, radius: 4),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: PosterSkeleton.heightFor(Adaptive.posterWidth(formFactor)),
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: 6,
-                separatorBuilder: (_, _) => const SizedBox(width: 12),
-                itemBuilder: (_, _) => PosterSkeleton(
-                  width: Adaptive.posterWidth(formFactor),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ],
-      ),
-      error: (e, _) => EmptyState(
-        icon: Icons.error_outline_rounded,
-        title: 'This plugin failed to load',
-        message: '$e',
-        actionLabel: 'Try again',
-        onAction: () => ref.invalidate(pluginHomeProvider(sourceId)),
-      ),
-      data: (home) {
-        if (home.error != null) {
-          return EmptyState(
-            icon: Icons.warning_amber_rounded,
-            title: 'Could not open ${home.source.name}',
-            message: home.error!,
-            actionLabel: 'Try again',
-            onAction: () => ref.invalidate(pluginHomeProvider(sourceId)),
-            secondaryLabel: 'Manage plugins',
-            onSecondary: () => context.openExtensions(),
-          );
-        }
-        if (home.isEmpty) {
-          return EmptyState(
-            icon: Icons.inbox_outlined,
-            title: '${home.source.name} returned nothing',
-            message: 'The plugin loaded but its home feed is empty. '
-                'The source site may be down or blocking requests.',
-            actionLabel: 'Try again',
-            onAction: () => ref.invalidate(pluginHomeProvider(sourceId)),
-          );
-        }
-
-        void open(MediaItem item) => context.openDetails(
-              item.ref,
-              sourceId: home.source.id,
-              ecosystem: home.source.ecosystem,
-            );
-
-        return RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(pluginHomeProvider(sourceId));
-            await ref.read(pluginHomeProvider(sourceId).future);
-          },
-          child: ListView(
-            padding: EdgeInsets.only(bottom: 32),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 18, bottom: 6),
+          child: Row(
             children: [
-              _SourceHeader(source: home.source, formFactor: formFactor),
-              if (home.hero.isNotEmpty)
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: pad),
-                  child: HeroBanner(
-                    items: pickHeroItems(home.hero),
-                    formFactor: formFactor,
-                    rotationSeconds: rotationSeconds,
-                    reduceMotion: isTv,
-                    onPlay: open,
-                    onMoreInfo: open,
-                  ),
+              Container(
+                width: 4,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: tint,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-              const SizedBox(height: 20),
-              for (final row in home.rows)
-                MediaRow(
-                  rowKey: '${home.source.id}:${row.catalogId}',
-                  title: row.title,
-                  items: row.items,
-                  formFactor: formFactor,
-                  focusMemory: focusMemory,
-                  reduceMotion: isTv,
-                  onSelect: open,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  section.title,
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              if (section.isBeta)
+                const MetaChip(label: 'Beta soon', tone: MetaChipTone.warning)
+              else
+                Text(
+                  '${section.sources.length}',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: AeroColors.textTertiary),
                 ),
             ],
           ),
-        );
-      },
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 14, bottom: 10),
+          child: Text(
+            section.note,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: AeroColors.textSecondary),
+          ),
+        ),
+        for (final s in section.sources)
+          _ProviderTile(
+            source: s,
+            enabled: section.isOpenable && canOpen(s),
+            formFactor: formFactor,
+          ),
+        if (section.isEmpty && !section.isStreamsOnly)
+          _AddTile(section: section, formFactor: formFactor),
+        if (!section.isEmpty && !section.isStreamsOnly && !section.isBeta)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 6, top: 2),
+              child: TextButton.icon(
+                onPressed: () => context.openExtensions(ecosystem: eco),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: Text('Add ${section.noun.toLowerCase()}'),
+              ),
+            ),
+          ),
+        const SizedBox(height: 6),
+        const Divider(height: 1),
+      ],
     );
   }
 }
 
-/// Names the world you are in, so a plugin's content is never mistaken for
-/// another's. Also the entry point to that plugin's own settings.
-class _SourceHeader extends StatelessWidget {
-  const _SourceHeader({required this.source, required this.formFactor});
+class _ProviderTile extends StatelessWidget {
+  const _ProviderTile({
+    required this.source,
+    required this.enabled,
+    required this.formFactor,
+  });
 
   final InstalledSource source;
+  final bool enabled;
   final FormFactor formFactor;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tint = Color(source.ecosystem.colorSeed);
+
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        Adaptive.pagePadding(formFactor),
-        4,
-        Adaptive.pagePadding(formFactor),
-        14,
-      ),
-      child: Row(
-        children: [
-          EcosystemBadge(ecosystem: source.ecosystem, compact: true),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              source.name,
-              style: theme.textTheme.titleMedium,
-              overflow: TextOverflow.ellipsis,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TvFocus(
+        borderRadius: 12,
+        enabled: enabled,
+        onSelect: enabled
+            ? () => context.openProviderHome(source)
+            : null,
+        child: Opacity(
+          opacity: enabled ? 1 : 0.55,
+          child: Container(
+            padding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: formFactor == FormFactor.tv ? 16 : 10),
+            decoration: BoxDecoration(
+              color: AeroColors.surfaceHigh,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: tint.withValues(alpha: 0.18),
+                  backgroundImage: source.logo == null
+                      ? null
+                      : NetworkImage(source.logo!),
+                  child: source.logo == null
+                      ? Icon(Icons.extension_rounded, size: 16, color: tint)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        source.name,
+                        style: theme.textTheme.bodyLarge
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        source.enabled
+                            ? 'v${source.version}'
+                            : 'v${source.version} · disabled',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: AeroColors.textTertiary),
+                      ),
+                    ],
+                  ),
+                ),
+                if (enabled)
+                  const Icon(Icons.chevron_right_rounded,
+                      color: AeroColors.textTertiary),
+              ],
             ),
           ),
-          Text(
-            'v${source.version}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AeroColors.textTertiary,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _NoBrowsablePlugins extends ConsumerWidget {
-  const _NoBrowsablePlugins();
+class _AddTile extends StatelessWidget {
+  const _AddTile({required this.section, required this.formFactor});
+
+  final ProviderSection section;
+  final FormFactor formFactor;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final nonBrowsable = ref.watch(nonBrowsableSourcesProvider).valueOrNull ?? const [];
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      children: [
-        EmptyState(
-          icon: Icons.travel_explore_outlined,
-          title: 'Nothing to browse yet',
-          message: 'Browse shows one plugin at a time, using that plugin\'s own '
-              'categories and layout. Install a Stremio, SkyStream or Vega '
-              'plugin to get started.',
-          actionLabel: 'Add a plugin',
-          onAction: () => context.openExtensions(),
-        ),
-        if (nonBrowsable.isNotEmpty) ...[
-          const SizedBox(height: 28),
-          const SectionHeader(title: 'Installed, but not browsable'),
-          const SizedBox(height: 8),
-          for (final s in nonBrowsable)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Color(s.ecosystem.colorSeed).withValues(alpha: 0.18),
-                  child: Icon(Icons.bolt_rounded, color: Color(s.ecosystem.colorSeed)),
+  Widget build(BuildContext context) {
+    final beta = section.isBeta;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TvFocus(
+        borderRadius: 12,
+        enabled: !beta,
+        onSelect: beta
+            ? null
+            : () => context.openExtensions(ecosystem: section.ecosystem),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: formFactor == FormFactor.tv ? 18 : 14),
+          decoration: BoxDecoration(
+            border: Border.all(color: AeroColors.outline),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(beta ? Icons.schedule_rounded : Icons.add_rounded,
+                  size: 18, color: AeroColors.textTertiary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  beta
+                      ? 'CloudStream support is in beta soon'
+                      : 'No ${section.noun.toLowerCase()} yet — add one',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: AeroColors.textSecondary),
                 ),
-                title: Text(s.name),
-                subtitle: Text(
-                  '${s.ecosystem.displayName} plugins only supply streams. '
-                  'They appear in the source picker when you play something.',
-                ),
-                isThreeLine: true,
               ),
-            ),
-        ],
-      ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

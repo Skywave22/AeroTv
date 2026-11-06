@@ -201,8 +201,8 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.key_rounded,
             title: 'TMDB API key',
             subtitle: settingsRepo.tmdbApiKey.isEmpty
-                ? 'Not set — ID mapping falls back to IMDb/title'
-                : 'Configured',
+                ? 'Not set — no Home trending rows, ID mapping falls back to IMDb/title'
+                : 'Configured — powers Home rows and ID mapping',
             onTap: () => _editTmdbKey(context, ref),
           ),
           const Divider(indent: 20, endIndent: 20),
@@ -550,9 +550,11 @@ class SettingsScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Optional. Used only to map IMDb ↔ TMDB IDs so more sources can '
-              'find the same title. Get a free key from themoviedb.org.\n\n'
-              'Aero TV ships with no key.',
+              'Optional, but recommended. Fills Home with trending and popular '
+              'rows, and maps IMDb ↔ TMDB IDs so more sources can find the same '
+              'title. This is how Nuvio-style scrapers get their metadata — they '
+              'only supply streams.\n\n'
+              'Get a free key from themoviedb.org. Aero TV ships with no key.',
               style: TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 14),

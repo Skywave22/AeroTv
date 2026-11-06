@@ -10,6 +10,7 @@ import '../screens/home_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/logs_screen.dart';
 import '../screens/source_diagnostics_screen.dart';
+import '../screens/provider_home_screen.dart';
 import '../screens/providers_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/settings_screen.dart';
@@ -27,6 +28,7 @@ class Routes {
   static const extensions = '/extensions';
   static const logs = '/logs';
   static const diagnostics = '/diagnostics';
+  static const providerHome = '/provider';
   static const details = '/details';
 }
 
@@ -130,6 +132,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
+        path: Routes.providerHome,
+        parentNavigatorKey: _rootKey,
+        builder: (context, state) {
+          final extra = state.extra;
+          return ProviderHomeScreen(
+            source: extra is InstalledSource ? extra : null,
+            sourceId: state.uri.queryParameters['id'],
+            ecosystemId: state.uri.queryParameters['eco'],
+          );
+        },
+      ),
+      GoRoute(
         path: Routes.details,
         parentNavigatorKey: _rootKey,
         builder: (context, state) {
@@ -165,6 +179,14 @@ extension AeroNavigation on BuildContext {
         preferredEcosystem: ecosystem,
       ),
     );
+  }
+
+  void openProviderHome(InstalledSource source) {
+    push(Routes.providerHome, extra: source);
+  }
+
+  void openDiagnostics(InstalledSource source) {
+    push('${Routes.settings}/diagnostics', extra: source);
   }
 
   void openExtensions({Ecosystem? ecosystem}) {

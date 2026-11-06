@@ -201,84 +201,59 @@ final enabledSourceCountProvider = Provider<int>((ref) {
 
 /// ------------------------------------------------------------------- home
 
-/// A home row ready to render.
-class HomeRow {
-  const HomeRow({
-    required this.key,
-    required this.title,
-    required this.sourceId,
-    required this.ecosystem,
-    required this.catalogId,
-    required this.items,
-    this.subtitle,
-  });
+/// A home row ready to render. Composition lives in aero_core so its ordering
+/// and failure-isolation rules are unit-tested.
+typedef HomeRow = HomeSection;
 
-  final String key;
-  final String title;
-  final String sourceId;
-  final Ecosystem ecosystem;
-  final String catalogId;
-  final List<MediaItem> items;
-  final String? subtitle;
-}
+/// TMDB catalogue rows. Configured from the user's own key in Settings; with
+/// no key this returns nothing and Home shows add-on catalogues alone.
+final tmdbCatalogProvider = Provider<TmdbCatalogRepository>((ref) {
+  return TmdbCatalogRepository(
+    db: ref.watch(databaseProvider),
+    apiKey: ref.watch(settingsRepoProvider).tmdbApiKey,
+  );
+});
 
-/// Aggregates catalogs from every enabled source, in priority order.
+/// Home: TMDB metadata rows first, then catalogue fragments from add-ons.
 ///
-/// Rows load in parallel with a per-row timeout so one slow add-on doesn't
-/// stall Home. Empty rows are dropped.
+/// Standalone providers (SkyStream, Vega, CloudStream) are deliberately absent:
+/// each is a whole site with its own categories, so they are opened one at a
+/// time from Browse. Nuvio has no catalogue API — its scrapers contribute
+/// streams at play time, which is exactly how Nuvio's own home works.
 final homeRowsProvider = FutureProvider<List<HomeRow>>((ref) async {
   final registry = ref.watch(adapterRegistryProvider);
   final sources = await ref.watch(installedSourcesProvider.future);
-  final enabled = sources.where((s) => s.enabled).toList()
-    ..sort((a, b) => a.priority.compareTo(b.priority));
-  if (enabled.isEmpty) return const [];
 
-  final rows = <HomeRow>[];
-  final futures = <Future<void>>[];
+  final unavailable = <Ecosystem>{
+    for (final eco in Ecosystem.values)
+      if (!(registry.forEcosystem(eco)?.isAvailable ?? false)) eco,
+  };
 
-  for (final s in enabled.take(8)) {
-    final adapter = registry.forEcosystem(s.ecosystem);
-    if (adapter == null || !adapter.isAvailable) continue;
-    futures.add(() async {
-      try {
-        final catalogs = await adapter
-            .catalogs(s.id)
-            .timeout(const Duration(seconds: 12));
-        // Only catalogs needing no user input can be passive Home rows.
-        for (final c in catalogs.where((c) => c.isHomeEligible).take(3)) {
-          try {
-            final page = await adapter
-                .browse(s.id, c.catalogId, const CatalogQuery())
-                .timeout(const Duration(seconds: 12));
-            if (page.items.isEmpty) continue;
-            rows.add(HomeRow(
-              key: '${s.key}:${c.catalogId}',
-              title: c.title,
-              subtitle: s.name,
-              sourceId: s.id,
-              ecosystem: s.ecosystem,
-              catalogId: c.catalogId,
-              items: page.items,
-            ));
-          } catch (_) {
-            // Skip an individual failing catalog.
-          }
-        }
-      } catch (_) {
-        // Skip a failing add-on entirely.
-      }
-    }());
-  }
+  // Metadata and add-ons load concurrently; neither blocks the other.
+  final metadataFuture = ref
+      .read(tmdbCatalogProvider)
+      .rows()
+      .catchError((Object _) => <CatalogRow>[]);
 
-  await Future.wait(futures);
+  final eligible = HomeComposer.eligibleSources(sources,
+      unavailable: unavailable);
 
-  // Preserve provider priority in the final ordering.
-  final order = {for (var i = 0; i < enabled.length; i++) enabled[i].key: i};
-  rows.sort((a, b) {
-    final ai = order['${a.ecosystem.id}:${a.sourceId}'] ?? 999;
-    final bi = order['${b.ecosystem.id}:${b.sourceId}'] ?? 999;
-    return ai.compareTo(bi);
-  });
+  final rows = await HomeComposer.build(
+    sources: eligible,
+    metadataRows: await metadataFuture,
+    unavailable: unavailable,
+    catalogs: (s) {
+      final adapter = registry.forEcosystem(s.ecosystem);
+      if (adapter == null) return Future.value(const <CatalogRow>[]);
+      return adapter.catalogs(s.id);
+    },
+    browse: (s, catalogId) {
+      final adapter = registry.forEcosystem(s.ecosystem);
+      if (adapter == null) return Future.value(Page.empty<MediaItem>());
+      return adapter.browse(s.id, catalogId, const CatalogQuery());
+    },
+  );
+
   return rows;
 });
 

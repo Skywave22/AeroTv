@@ -23,6 +23,8 @@ export 'src/repo/shortcode_resolver.dart';
 export 'src/resolver/circuit_breaker.dart';
 export 'src/resolver/ranking_rules.dart';
 export 'src/metadata/metadata_resolver.dart';
+export 'src/home/home_composer.dart';
+export 'src/home/provider_directory.dart';
 export 'src/metadata/id_map.dart';
 export 'src/metadata/title_matcher.dart';
 export 'src/util/result.dart';

@@ -2,7 +2,6 @@ import 'package:aero_core/aero_core.dart';
 import 'package:aero_ui/aero_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../routing/app_router.dart';
 import '../state/providers.dart';
@@ -126,12 +125,12 @@ class _ProviderTile extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: TvFocus(
         borderRadius: 14,
-        onSelect: () => _open(context, ref, canBrowse),
+        onSelect: () => _open(context, canBrowse),
         child: Card(
           margin: EdgeInsets.zero,
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: () => _open(context, ref, canBrowse),
+            onTap: () => _open(context, canBrowse),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(
@@ -215,10 +214,11 @@ class _ProviderTile extends ConsumerWidget {
         size: 20,
       );
 
-  void _open(BuildContext context, WidgetRef ref, bool canBrowse) {
+  void _open(BuildContext context, bool canBrowse) {
     if (canBrowse) {
-      ref.read(browseSelectionProvider.notifier).state = source.id;
-      context.go(Routes.browse);
+      // Browse is now a directory of sections, so open this provider's own
+      // page rather than selecting it in a picker that no longer exists.
+      context.openProviderHome(source);
     } else {
       context.openExtensions(ecosystem: source.ecosystem);
     }

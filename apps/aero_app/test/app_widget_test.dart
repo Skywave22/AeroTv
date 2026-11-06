@@ -89,15 +89,26 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Browse explains itself when nothing is browsable', (tester) async {
+  testWidgets('Browse lists an ecosystem section even with nothing installed',
+      (tester) async {
     await pumpScreen(tester, const BrowseScreen(), db: db);
 
-    expect(find.text('Nothing to browse yet'), findsOneWidget);
-    expect(find.textContaining('one plugin at a time'), findsOneWidget);
+    // Sections are discoverable before anything is installed.
+    expect(find.text('SkyStream'), findsOneWidget);
+    expect(find.text('Vega'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Browse renders a plugin picker when plugins exist', (tester) async {
+  testWidgets('Browse marks CloudStream as beta rather than hiding it',
+      (tester) async {
+    await pumpScreen(tester, const BrowseScreen(), db: db);
+
+    expect(find.text('CloudStream'), findsOneWidget);
+    expect(find.text('Beta soon'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Browse lists a provider under its own ecosystem', (tester) async {
     final source = InstalledSource(
       id: 'p1',
       ecosystem: Ecosystem.skystream,
@@ -112,8 +123,9 @@ void main() {
       sources: [source],
     );
 
-    // The chip names the active world so content is never ambiguous.
+    // The tile names the provider inside its ecosystem's section.
     expect(find.text('My Plugin'), findsWidgets);
+    expect(find.text('SkyStream'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
