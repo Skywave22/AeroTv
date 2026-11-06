@@ -13,19 +13,30 @@ class TitleCandidate {
     required this.link,
     this.year,
     this.type,
+    this.poster,
   });
 
   final String title;
   final String link;
   final int? year;
   final String? type;
+
+  /// Optional artwork, shown in the "Wrong match?" picker.
+  final String? poster;
 }
 
 /// How a candidate scored against the request.
 class TitleMatch {
-  const TitleMatch(this.candidate, this.score);
+  const TitleMatch(this.candidate, this.score, {this.pinned = false});
   final TitleCandidate candidate;
   final double score;
+
+  /// True when the user chose this candidate themselves. A pinned match is
+  /// trusted unconditionally and is never replaced by a better-scoring guess.
+  final bool pinned;
+
+  /// A pinned match is always usable; an auto match must clear the threshold.
+  bool get isUsable => pinned || score >= TitleMatcher.acceptThreshold;
 }
 
 abstract final class TitleMatcher {
