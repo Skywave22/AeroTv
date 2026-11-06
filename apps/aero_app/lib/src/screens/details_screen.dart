@@ -101,6 +101,30 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     }
   }
 
+  /// Returns true to resume, false to start over, null if dismissed.
+  Future<bool?> _confirmResume(Duration position) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Resume playback?'),
+        content: Text(
+          'You stopped at ${formatDuration(position)}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Start over'),
+          ),
+          FilledButton(
+            autofocus: true,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('Resume ${formatDuration(position)}'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _openPlayer({
     required StreamLink link,
     required MediaItem item,
@@ -120,6 +144,14 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       );
       if (resume != null && resume.isResumable) {
         start = Duration(milliseconds: resume.positionMs);
+        // Ask rather than silently jumping: the user may be rewatching, and a
+        // surprise seek is disorienting. Autofocus Resume so a remote user can
+        // just press Select.
+        if (mounted) {
+          final resumeIt = await _confirmResume(start);
+          if (resumeIt == null) return; // dismissed: do not start playback
+          if (!resumeIt) start = Duration.zero;
+        }
       }
     }
 

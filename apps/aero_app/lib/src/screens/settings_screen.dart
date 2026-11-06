@@ -279,6 +279,20 @@ class SettingsScreen extends ConsumerWidget {
             title: Text('Aero TV'),
             subtitle: Text('Version 0.1.0 · Phase 1 (Stremio MVP)'),
           ),
+          _tile(
+            context,
+            icon: Icons.description_outlined,
+            title: 'Open-source licences',
+            subtitle: 'Flutter, media_kit and the packages this app builds on',
+            onTap: () => showLicensePage(
+              context: context,
+              applicationName: 'Aero TV',
+              applicationVersion: '0.1.0',
+              applicationLegalese:
+                  'A neutral media player and plugin host.\n'
+                  'No content, no add-ons and no repositories are included.',
+            ),
+          ),
           const Padding(
             padding: EdgeInsets.fromLTRB(20, 8, 20, 20),
             child: Text(

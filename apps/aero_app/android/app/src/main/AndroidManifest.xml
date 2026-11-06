@@ -64,6 +64,19 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="aerotv" />
             </intent-filter>
+
+            <!--
+              stremio:// links. Add-on sites and the Stremio community publish
+              install links in this scheme; Aero TV can consume them because it
+              speaks the same add-on protocol. Claiming the scheme lets a user
+              tap "Install" on a website instead of copying a URL by hand.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="stremio" />
+            </intent-filter>
         </activity>
 
         <meta-data

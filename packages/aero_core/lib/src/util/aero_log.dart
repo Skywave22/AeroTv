@@ -1,3 +1,76 @@
+/// Redacts credentials from URLs before they reach the log or the UI.
+///
+/// Stremio add-on URLs routinely embed a user token in the path
+/// (`https://host/<token>/manifest.json`) or in the query (`?api_key=...`).
+/// Logs are exportable and shown on screen, so those must never leak.
+abstract final class UrlRedactor {
+  /// Query parameters whose values are secrets.
+  static const _secretKeys = {
+    'token', 'api_key', 'apikey', 'key', 'auth', 'authorization',
+    'password', 'pass', 'secret', 'access_token', 'refresh_token', 'sig',
+    'signature', 'session', 'sessionid', 'credential', 'credentials',
+  };
+
+  /// Path segments that look like an opaque credential.
+  static final _opaqueSegment = RegExp(r'^[A-Za-z0-9_\-]{20,}$');
+
+  /// Returns a copy of [url] safe to display or log.
+  static String redact(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme) return url;
+
+    var changed = false;
+    var userInfo = uri.userInfo;
+    if (userInfo.isNotEmpty) {
+      userInfo = '***';
+      changed = true;
+    }
+
+    Map<String, String>? query;
+    if (uri.hasQuery) {
+      query = {};
+      uri.queryParameters.forEach((k, v) {
+        if (_secretKeys.contains(k.toLowerCase())) {
+          query![k] = 'REDACTED';
+          changed = true;
+        } else {
+          query![k] = v;
+        }
+      });
+    }
+
+    final segments = uri.pathSegments.map((seg) {
+      // Keep filenames and short slugs; mask long opaque tokens.
+      if (seg.contains('.')) return seg;
+      if (_opaqueSegment.hasMatch(seg) && _hasDigitAndLetter(seg)) {
+        changed = true;
+        return '***';
+      }
+      return seg;
+    }).toList();
+
+    if (!changed) return url;
+    return uri
+        .replace(
+          userInfo: userInfo.isEmpty ? null : userInfo,
+          pathSegments: segments,
+          queryParameters: query,
+        )
+        .toString();
+  }
+
+  /// A long segment is only treated as a credential if it mixes digits and
+  /// letters, so ordinary long words in a path are preserved.
+  static bool _hasDigitAndLetter(String s) =>
+      s.contains(RegExp(r'[0-9]')) && s.contains(RegExp(r'[A-Za-z]'));
+
+  /// Redacts every URL-looking substring inside a free-text message.
+  static String redactText(String text) => text.replaceAllMapped(
+        RegExp(r'https?://[^\s"'"'"'<>]+'),
+        (m) => redact(m.group(0)!),
+      );
+}
+
 /// Log severity levels for the in-app log viewer.
 enum LogLevel { debug, info, warn, error }
 
@@ -45,7 +118,14 @@ class AeroLog {
 
   void add(LogLevel level, String tag, String message, {Uri? uri}) {
     if (level == LogLevel.debug && !verbose) return;
-    final e = LogEntry(level: level, tag: tag, message: message, uri: uri);
+    // One choke point: every log line and every recorded URI is redacted, so
+    // no caller can accidentally leak a token into the exportable log.
+    final e = LogEntry(
+      level: level,
+      tag: tag,
+      message: UrlRedactor.redactText(message),
+      uri: uri == null ? null : Uri.tryParse(UrlRedactor.redact(uri.toString())),
+    );
     _entries.add(e);
     if (_entries.length > maxEntries) {
       _entries.removeRange(0, _entries.length - maxEntries);

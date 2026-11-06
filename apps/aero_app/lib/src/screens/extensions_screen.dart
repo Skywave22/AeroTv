@@ -831,6 +831,8 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
         });
         widget.onChanged();
       case 'copy':
+        // Copy the real URL (the user needs it to work), but never render or
+        // log it unredacted — add-on URLs often embed a personal token.
         await Clipboard.setData(ClipboardData(text: s.url));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
