@@ -442,13 +442,16 @@ class PluginHome {
 /// Loads a single plugin's home. Applies SkyStream's dashboard rule uniformly:
 /// a "Trending" category becomes the hero and is removed from the rows; if
 /// absent the first non-empty category is promoted instead.
+/// Keyed by `ecosystem:id`, not by bare id: the same id can legitimately exist
+/// in two ecosystems (a Stremio add-on and a Vega provider derived from the
+/// same host), and a bare-id lookup silently opened whichever came first.
 final pluginHomeProvider =
-    FutureProvider.family<PluginHome, String>((ref, sourceId) async {
+    FutureProvider.family<PluginHome, String>((ref, sourceKey) async {
   final registry = ref.watch(adapterRegistryProvider);
   final sources = await ref.watch(installedSourcesProvider.future);
   InstalledSource? source;
   for (final s in sources) {
-    if (s.id == sourceId) {
+    if (s.key == sourceKey) {
       source = s;
       break;
     }
@@ -456,16 +459,17 @@ final pluginHomeProvider =
   if (source == null) {
     return PluginHome(
       source: InstalledSource(
-        id: sourceId,
+        id: sourceKey,
         ecosystem: Ecosystem.stremio,
         name: 'Unknown',
         url: '',
       ),
       hero: const [],
       rows: const [],
-      error: 'This plugin is no longer installed.',
+      error: 'This provider is no longer installed.',
     );
   }
+  final sourceId = source.id;
 
   final adapter = registry.forEcosystem(source.ecosystem);
   if (adapter == null || !adapter.isAvailable) {

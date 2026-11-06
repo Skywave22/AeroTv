@@ -112,8 +112,8 @@ class _Body extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sourceId = source.id;
-    final async = ref.watch(pluginHomeProvider(sourceId));
+    final sourceKey = source.key;
+    final async = ref.watch(pluginHomeProvider(sourceKey));
     final pad = Adaptive.pagePadding(formFactor);
 
     return async.when(
@@ -148,7 +148,7 @@ class _Body extends ConsumerWidget {
         title: 'This provider failed to load',
         message: '$e',
         actionLabel: 'Try again',
-        onAction: () => ref.invalidate(pluginHomeProvider(sourceId)),
+        onAction: () => ref.invalidate(pluginHomeProvider(sourceKey)),
         secondaryLabel: 'Diagnostics',
         onSecondary: () => context.openDiagnostics(source),
       ),
@@ -159,7 +159,7 @@ class _Body extends ConsumerWidget {
             title: 'Could not open ${home.source.name}',
             message: home.error!,
             actionLabel: 'Try again',
-            onAction: () => ref.invalidate(pluginHomeProvider(sourceId)),
+            onAction: () => ref.invalidate(pluginHomeProvider(sourceKey)),
             secondaryLabel: 'Diagnostics',
             onSecondary: () => context.openDiagnostics(home.source),
           );
@@ -171,7 +171,7 @@ class _Body extends ConsumerWidget {
             message: 'The provider loaded but its home feed is empty. '
                 'The source site may be down or blocking requests.',
             actionLabel: 'Try again',
-            onAction: () => ref.invalidate(pluginHomeProvider(sourceId)),
+            onAction: () => ref.invalidate(pluginHomeProvider(sourceKey)),
             secondaryLabel: 'Run diagnostics',
             onSecondary: () => context.openDiagnostics(home.source),
           );
@@ -185,8 +185,8 @@ class _Body extends ConsumerWidget {
 
         return RefreshIndicator(
           onRefresh: () async {
-            ref.invalidate(pluginHomeProvider(sourceId));
-            await ref.read(pluginHomeProvider(sourceId).future);
+            ref.invalidate(pluginHomeProvider(sourceKey));
+            await ref.read(pluginHomeProvider(sourceKey).future);
           },
           child: ListView(
             padding: const EdgeInsets.only(bottom: 32),

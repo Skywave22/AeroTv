@@ -1,6 +1,7 @@
 import 'package:aero_ui/aero_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../routing/app_router.dart';
 import '../state/providers.dart';
@@ -30,6 +31,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final sourcesAsync = ref.watch(installedSourcesProvider);
     final rowsAsync = ref.watch(homeRowsProvider);
     final continueAsync = ref.watch(continueWatchingProvider);
+    final tmdbConfigured =
+        ref.watch(settingsRepoProvider).tmdbApiKey.trim().isNotEmpty;
 
     return Scaffold(
       body: RefreshIndicator(
@@ -59,12 +62,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     title: 'Welcome to Aero TV',
                     message:
                         'Aero TV is a player and plugin host. It ships with no '
-                        'content and no sources.\n\nAdd your own add-ons to '
-                        'start browsing.',
+                        'content and no sources.\n\nAdd your own add-ons, or '
+                        'set a TMDB key to fill Home with trending and popular '
+                        'titles while your scrapers supply the streams.',
                     actionLabel: 'Add an add-on',
                     onAction: () => context.openExtensions(),
-                    secondaryLabel: 'Learn more',
-                    onSecondary: () => _showAboutSources(context),
+                    secondaryLabel: tmdbConfigured ? 'Learn more' : 'Set TMDB key',
+                    onSecondary: () => tmdbConfigured
+                        ? _showAboutSources(context)
+                        : context.go(Routes.settings),
                   ),
                 ],
               );
@@ -89,12 +95,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       SizedBox(height: MediaQuery.sizeOf(context).height * 0.1),
                       EmptyState(
                         icon: Icons.inbox_outlined,
-                        title: 'No catalogs yet',
-                        message:
-                            'Your add-ons are installed but none returned a '
-                            'catalog. Check that they are enabled and reachable.',
-                        actionLabel: 'Manage add-ons',
-                        onAction: () => context.openExtensions(),
+                        title: 'Nothing on Home yet',
+                        message: tmdbConfigured
+                            ? 'No trending rows came back from TMDB, and no '
+                                'add-on returned a catalog. Check that your '
+                                'add-ons are enabled and reachable.\n\n'
+                                'SkyStream and Vega providers are browsed from '
+                                'the Browse tab, not shown here.'
+                            : 'Home is filled by add-on catalogs and TMDB. '
+                                'Set a free TMDB key for trending and popular '
+                                'rows, or add an add-on.\n\n'
+                                'SkyStream and Vega providers are browsed from '
+                                'the Browse tab, not shown here.',
+                        actionLabel:
+                            tmdbConfigured ? 'Manage add-ons' : 'Set TMDB key',
+                        onAction: () => tmdbConfigured
+                            ? context.openExtensions()
+                            : context.go(Routes.settings),
                         secondaryLabel: 'Retry',
                         onSecondary: () => ref.invalidate(homeRowsProvider),
                       ),

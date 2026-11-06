@@ -36,9 +36,21 @@ class _SourceDiagnosticsScreenState
     extends ConsumerState<SourceDiagnosticsScreen> {
   DiagnosticReport? _report;
   bool _running = false;
+  final _testId = TextEditingController();
+  MediaType _testType = MediaType.movie;
+  final _season = TextEditingController();
+  final _episode = TextEditingController();
   List<PluginLogRow> _logs = const [];
   List<String> _hosts = const [];
   InstalledSource? _resolved;
+
+  @override
+  void dispose() {
+    _testId.dispose();
+    _season.dispose();
+    _episode.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -122,6 +134,39 @@ class _SourceDiagnosticsScreenState
     await _load();
   }
 
+  /// The stream-only path: there is no catalogue to find a title in, so the
+  /// user supplies one. This is the only way to verify a Nuvio scraper.
+  Future<void> _runStreamTest() async {
+    final s = _source;
+    final id = _testId.text.trim();
+    if (s == null || _running || id.isEmpty) return;
+    final adapter = ref.read(adapterRegistryProvider).forEcosystem(s.ecosystem);
+    if (adapter == null) return;
+
+    setState(() => _running = true);
+    final report = await AdapterDiagnostics.testStreams(
+      adapter,
+      s,
+      id: id,
+      type: _testType,
+      season: int.tryParse(_season.text.trim()),
+      episode: int.tryParse(_episode.text.trim()),
+    );
+    final logs = ref.read(pluginLogRepoProvider);
+    await logs.append(
+      '${s.ecosystem.id}:${s.id}',
+      report.ok ? LogLevel.info : LogLevel.error,
+      'diagnostics',
+      'Stream test ($id): ${report.summary}',
+    );
+    if (!mounted) return;
+    setState(() {
+      _report = report;
+      _running = false;
+    });
+    await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = _source;
@@ -168,9 +213,15 @@ class _SourceDiagnosticsScreenState
   Widget _testTab(InstalledSource s, CircuitBreaker breaker) {
     final key = '${s.ecosystem.name}:${s.id}';
     final report = _report;
+    final streamsOnly =
+        !s.can(Capability.catalogs) && !s.can(Capability.search);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (streamsOnly) ...[
+          _streamTestCard(s),
+          const SizedBox(height: 16),
+        ],
         TvFocus(
           onSelect: _runTest,
           enabled: !_running,
@@ -215,6 +266,89 @@ class _SourceDiagnosticsScreenState
           ...report.steps.map(_stepTile),
         ],
       ],
+    );
+  }
+
+  Widget _streamTestCard(InstalledSource s) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AeroColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Test with a known title',
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(
+            '${s.name} only supplies streams, so there is nothing to browse '
+            'for a title. Enter an IMDb id (tt1160419) or a TMDB id (438631).',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: AeroColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _testId,
+            decoration: const InputDecoration(
+              labelText: 'IMDb or TMDB id',
+              hintText: 'tt1160419',
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<MediaType>(
+                  initialValue: _testType,
+                  decoration: const InputDecoration(labelText: 'Type'),
+                  items: const [
+                    DropdownMenuItem(
+                        value: MediaType.movie, child: Text('Movie')),
+                    DropdownMenuItem(
+                        value: MediaType.series, child: Text('Series')),
+                  ],
+                  onChanged: _running
+                      ? null
+                      : (v) => setState(() => _testType = v ?? MediaType.movie),
+                ),
+              ),
+              if (_testType == MediaType.series) ...[
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 72,
+                  child: TextField(
+                    controller: _season,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'S'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 72,
+                  child: TextField(
+                    controller: _episode,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'E'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.tonalIcon(
+              onPressed: _running ? null : _runStreamTest,
+              icon: const Icon(Icons.bolt_rounded, size: 18),
+              label: Text(_running ? 'Testing…' : 'Test streams'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

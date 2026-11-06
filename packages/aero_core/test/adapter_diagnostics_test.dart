@@ -253,4 +253,100 @@ void main() {
       expect(r.steps.first.detail, contains('42 ms'));
     });
   });
+
+  group('stream-only test card', () {
+    test('an IMDb id is used as an IMDb id', () {
+      final ref = AdapterDiagnostics.parseTestId('tt1160419');
+      expect(ref.imdbId, 'tt1160419');
+      expect(ref.tmdbId, isNull);
+      expect(ref.id, 'tt1160419');
+    });
+
+    test('a bare number is a TMDB id, never guessed as IMDb', () {
+      final ref = AdapterDiagnostics.parseTestId('438631');
+      expect(ref.tmdbId, '438631');
+      expect(ref.imdbId, isNull);
+      expect(ref.id, 'tmdb:438631');
+    });
+
+    test('an explicit tmdb: prefix is accepted', () {
+      expect(AdapterDiagnostics.parseTestId('tmdb:438631').tmdbId, '438631');
+    });
+
+    test('a native id is passed through untouched', () {
+      final ref = AdapterDiagnostics.parseTestId('/movies/dune-2021');
+      expect(ref.id, '/movies/dune-2021');
+      expect(ref.imdbId, isNull);
+      expect(ref.tmdbId, isNull);
+    });
+
+    test('whitespace is trimmed', () {
+      expect(AdapterDiagnostics.parseTestId('  tt0111161  ').imdbId, 'tt0111161');
+    });
+
+    test('the type is carried through', () {
+      expect(AdapterDiagnostics.parseTestId('1396', type: MediaType.series).type,
+          MediaType.series);
+    });
+
+    test('a scraper with no catalogue can still be tested', () async {
+      final a = FakeAdapter(links: [link('https://cdn.test/a.mp4')]);
+      final r = await AdapterDiagnostics.testStreams(
+        a,
+        sourceWith({Capability.streams}),
+        id: '438631',
+      );
+      expect(r.ok, isTrue);
+      expect(r.steps.single.name, 'Streams');
+      expect(r.steps.single.count, 1);
+      expect(r.steps.single.detail, contains('1 playable'));
+      expect(a.calls.single, 'streams:tmdb:438631');
+    });
+
+    test('season and episode reach the play request', () async {
+      final a = FakeAdapter(links: [link('https://cdn.test/e.mp4')]);
+      await AdapterDiagnostics.testStreams(
+        a,
+        sourceWith({Capability.streams}),
+        id: 'tt0944947',
+        type: MediaType.series,
+        season: 1,
+        episode: 2,
+      );
+      expect(a.calls.single, 'streams:tt0944947');
+    });
+
+    test('no links is a warning, not a broken scraper', () async {
+      final a = FakeAdapter();
+      final r = await AdapterDiagnostics.testStreams(
+        a,
+        sourceWith({Capability.streams}),
+        id: '438631',
+      );
+      expect(r.ok, isTrue);
+      expect(r.steps.single.status, DiagnosticStatus.warn);
+    });
+
+    test('a scraper that throws is a failure with a classified reason',
+        () async {
+      final a = FakeAdapter(streamsThrow: Exception('Connection refused'));
+      final r = await AdapterDiagnostics.testStreams(
+        a,
+        sourceWith({Capability.streams}),
+        id: '438631',
+      );
+      expect(r.ok, isFalse);
+      expect(r.failKind, FailKind.network);
+    });
+
+    test('a source without the streams capability is skipped', () async {
+      final r = await AdapterDiagnostics.testStreams(
+        FakeAdapter(),
+        sourceWith({Capability.catalogs}),
+        id: '438631',
+      );
+      expect(r.steps.single.status, DiagnosticStatus.skipped);
+      expect(r.summary, contains('no testable capabilities'));
+    });
+  });
 }

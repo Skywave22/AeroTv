@@ -100,4 +100,64 @@ abstract final class AdapterDiagnostics {
       },
     );
   }
+
+  /// A stream-only source has no catalogue to find a title in, so the user
+  /// supplies one. This is the "test with a known id" card: it is the only way
+  /// to verify a Nuvio scraper, whose entire API is `getStreams`.
+  ///
+  /// [id] may be an IMDb id (`tt1160419`), a TMDB id (`438631` or
+  /// `tmdb:438631`), or a provider-native id.
+  static Future<DiagnosticReport> testStreams(
+    EcosystemAdapter adapter,
+    InstalledSource source, {
+    required String id,
+    MediaType type = MediaType.movie,
+    int? season,
+    int? episode,
+    Duration perStepTimeout = const Duration(seconds: 30),
+  }) {
+    final ref = parseTestId(id, type: type);
+    return PluginDiagnostics.run(
+      source.key,
+      perStepTimeout: perStepTimeout,
+      probes: {
+        'Streams': source.can(Capability.streams)
+            ? () async {
+                final links = await adapter
+                    .streams(
+                      source.id,
+                      PlayRequest(
+                        ref: ref,
+                        season: season,
+                        episode: episode,
+                      ),
+                    )
+                    .take(20)
+                    .toList();
+                final playable = links.where((l) => l.isPlayable).length;
+                return ProbeResult(
+                  count: links.length,
+                  detail: links.isEmpty
+                      ? 'no links for ${ref.id}'
+                      : '$playable playable, ${links.length - playable} other',
+                );
+              }
+            : null,
+      },
+    );
+  }
+
+  /// Turns what the user typed into a ref, without guessing an IMDb id from a
+  /// TMDB number or vice versa.
+  static MediaRef parseTestId(String raw, {MediaType type = MediaType.movie}) {
+    final text = raw.trim();
+    final bare = text.startsWith('tmdb:') ? text.substring(5) : text;
+    if (bare.startsWith('tt') && bare.length > 2) {
+      return MediaRef(id: bare, type: type, imdbId: bare);
+    }
+    if (RegExp(r'^\d+$').hasMatch(bare)) {
+      return MediaRef(id: 'tmdb:$bare', type: type, tmdbId: bare);
+    }
+    return MediaRef(id: text, type: type);
+  }
 }
