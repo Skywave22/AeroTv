@@ -113,14 +113,24 @@ class StremioManifest {
     if (id == null || id.isEmpty) return null;
     // `extra` declares supported filters; `search` presence ⇒ searchable.
     final extra = (j['extra'] as List?) ?? const [];
+    // Accept our own toJson output too, otherwise a cached manifest loses
+    // searchable/genres/requiredExtras on every launch after the first.
+    if (j.containsKey('searchable') && !j.containsKey('extra')) {
+      return CatalogDescriptor.fromJson(j);
+    }
     var searchable = false;
     var genres = <String>[];
+    final requiredExtras = <String>[];
     int? pageSize;
     for (final e in extra) {
       if (e is! Map) continue;
       final m = Map<String, dynamic>.from(e);
       final name = m['name']?.toString();
+      if (name == null || name.isEmpty) continue;
       if (name == 'search') searchable = true;
+      if (m['isRequired'] == true && !requiredExtras.contains(name)) {
+        requiredExtras.add(name);
+      }
       if (name == 'genre') {
         genres = (m['options'] as List?)?.map((o) => o.toString()).toList() ?? const [];
       }
@@ -133,6 +143,7 @@ class StremioManifest {
       searchable: searchable,
       genres: genres,
       pageSize: pageSize,
+      requiredExtras: requiredExtras,
     );
   }
 

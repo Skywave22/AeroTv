@@ -13,6 +13,7 @@ export 'src/models/source.dart';
 export 'src/models/stream_link.dart';
 export 'src/models/subtitle.dart';
 export 'src/adapter/ecosystem_adapter.dart';
+export 'src/adapter/json_cache.dart';
 export 'src/adapter/adapter_registry.dart';
 export 'src/resolver/stream_resolver.dart';
 export 'src/resolver/stream_ranker.dart';

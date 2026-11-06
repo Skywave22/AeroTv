@@ -194,6 +194,7 @@ class CatalogDescriptor {
     this.searchable = false,
     this.genres = const [],
     this.pageSize,
+    this.requiredExtras = const [],
   });
 
   final String id;
@@ -203,7 +204,15 @@ class CatalogDescriptor {
   final List<String> genres;
   final int? pageSize;
 
+  /// Extras the add-on *requires* before this catalog returns anything.
+  /// A catalog demanding input cannot be a passive Home row.
+  final List<String> requiredExtras;
+
   String get displayTitle => name ?? id;
+
+  /// `skip`/`limit` are pagination, not filters, so they do not disqualify.
+  bool get isHomeEligible =>
+      !requiredExtras.any((e) => e != 'skip' && e != 'limit');
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -212,6 +221,7 @@ class CatalogDescriptor {
         'searchable': searchable,
         'genres': genres,
         if (pageSize != null) 'pageSize': pageSize,
+        if (requiredExtras.isNotEmpty) 'requiredExtras': requiredExtras,
       };
 
   factory CatalogDescriptor.fromJson(Map<String, dynamic> j) => CatalogDescriptor(
@@ -221,6 +231,10 @@ class CatalogDescriptor {
         searchable: j['searchable'] as bool? ?? false,
         genres: (j['genres'] as List?)?.map((e) => e.toString()).toList() ?? const [],
         pageSize: (j['pageSize'] as num?)?.toInt(),
+        requiredExtras: (j['requiredExtras'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const [],
       );
 }
 

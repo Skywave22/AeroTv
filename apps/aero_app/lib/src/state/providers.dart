@@ -111,7 +111,9 @@ final adapterRegistryProvider = Provider<AdapterRegistry>((ref) {
   final sources = ref.watch(sourceRepoProvider);
   final cache = ref.watch(cacheRepoProvider);
 
-  registry.register(StremioAdapter(store: _StremioStoreBridge(sources)));
+  registry.register(
+    StremioAdapter(store: _StremioStoreBridge(sources), cache: cache),
+  );
 
   final jsStore = _JsStoreBridge(sources, cache);
   // JS ecosystems are registered but ship no plugins; the user adds their own.
@@ -226,8 +228,8 @@ final homeRowsProvider = FutureProvider<List<HomeRow>>((ref) async {
         final catalogs = await adapter
             .catalogs(s.id)
             .timeout(const Duration(seconds: 12));
-        // Take the first few catalogs per add-on to keep Home focused.
-        for (final c in catalogs.take(3)) {
+        // Only catalogs needing no user input can be passive Home rows.
+        for (final c in catalogs.where((c) => c.isHomeEligible).take(3)) {
           try {
             final page = await adapter
                 .browse(s.id, c.catalogId, const CatalogQuery())

@@ -30,8 +30,9 @@ class MemoryStremioStore implements StremioStore {
 
 /// Stremio adapter. Ships with **zero** add-ons: the user installs everything.
 class StremioAdapter implements EcosystemAdapter {
-  StremioAdapter({required this.store, StremioApi? api})
-      : api = api ?? StremioApi();
+  StremioAdapter({required this.store, StremioApi? api, JsonCache? cache})
+      : api = api ?? StremioApi(),
+        cache = cache ?? MemoryJsonCache();
 
   @override
   String? get unavailableReason => null;
@@ -39,8 +40,11 @@ class StremioAdapter implements EcosystemAdapter {
   final StremioStore store;
   final StremioApi api;
 
-  /// Manifest cache keyed by source id, so browsing doesn't refetch.
+  /// Persistent cache (Drift-backed in the app). Survives restarts.
+  final JsonCache cache;
+
   final Map<String, StremioManifest> _manifests = {};
+  final Set<String> _revalidating = {};
 
   @override
   Ecosystem get ecosystem => Ecosystem.stremio;
@@ -64,11 +68,53 @@ class StremioAdapter implements EcosystemAdapter {
   }
 
   Future<StremioManifest> _manifestFor(InstalledSource s) async {
-    final hit = _manifests[s.id];
-    if (hit != null) return hit;
-    final m = await api.fetchManifest(s.url);
-    _manifests[s.id] = m;
-    return m;
+    final hot = _manifests[s.id];
+    if (hot != null) return hot;
+
+    final key = CacheKeys.manifest(ecosystem.id, s.id);
+    final hit = await cache.read(key);
+    if (hit != null && hit.isFresh) {
+      try {
+        final m = StremioManifest.fromJson(hit.value);
+        _manifests[s.id] = m;
+        return m;
+      } catch (_) {
+        await cache.delete(key);
+      }
+    }
+    try {
+      final m = await api.fetchManifest(s.url);
+      _manifests[s.id] = m;
+      await cache.write(key, m.toJson(), ttl: CacheTtl.manifest);
+      return m;
+    } catch (e) {
+      // Offline: a stale manifest still lets the user browse cached catalogs.
+      if (hit != null) {
+        final m = StremioManifest.fromJson(hit.value);
+        _manifests[s.id] = m;
+        return m;
+      }
+      rethrow;
+    }
+  }
+
+  /// Background catalog refresh, de-duplicated so stale reads cannot stampede.
+  void _revalidateCatalog({
+    required String key,
+    required String url,
+    required String sourceName,
+  }) {
+    if (!_revalidating.add(key)) return;
+    unawaited(() async {
+      try {
+        final json = await api.getJson(url, sourceName: sourceName);
+        await cache.write(key, json, ttl: CacheTtl.catalog);
+      } catch (_) {
+        // Keep serving stale; the next read retries.
+      } finally {
+        _revalidating.remove(key);
+      }
+    }());
   }
 
   @override
@@ -171,6 +217,7 @@ class StremioAdapter implements EcosystemAdapter {
                 type: c.type,
                 genres: c.genres,
                 searchable: c.searchable,
+                requiredExtras: c.requiredExtras,
               ))
           .toList();
     } catch (e) {
@@ -197,8 +244,21 @@ class StremioAdapter implements EcosystemAdapter {
         }
       }
       final type = desc?.type.wire ?? 'movie';
-      final url = StremioApi.catalogUrl(s.url, type, catalogId, q.toExtraMap());
-      final json = await api.getJson(url, sourceName: s.name);
+      final extra = q.toExtraMap();
+      final url = StremioApi.catalogUrl(s.url, type, catalogId, extra);
+      final key = CacheKeys.catalog(ecosystem.id, sourceId, type, catalogId, extra);
+
+      final hit = await cache.read(key);
+      Map<String, dynamic> json;
+      if (hit != null && hit.isFresh) {
+        json = hit.value;
+      } else if (hit != null) {
+        json = hit.value;
+        _revalidateCatalog(key: key, url: url, sourceName: s.name);
+      } else {
+        json = await api.getJson(url, sourceName: s.name);
+        await cache.write(key, json, ttl: CacheTtl.catalog);
+      }
       final metas = (json['metas'] as List? ?? const []);
       final items = metas
           .whereType<Map>()
@@ -272,7 +332,23 @@ class StremioAdapter implements EcosystemAdapter {
         return const Err('This add-on does not provide metadata for this title');
       }
       final url = StremioApi.resourceUrl(s.url, 'meta', ref.type.wire, id);
-      final json = await api.getJson(url, sourceName: s.name);
+      final key = CacheKeys.meta(ecosystem.id, sourceId, ref.type.wire, id);
+      final hit = await cache.read(key);
+      Map<String, dynamic> json;
+      if (hit != null && hit.isFresh) {
+        json = hit.value;
+      } else {
+        try {
+          json = await api.getJson(url, sourceName: s.name);
+          await cache.write(key, json, ttl: CacheTtl.meta);
+        } catch (e) {
+          if (hit != null) {
+            json = hit.value;
+          } else {
+            rethrow;
+          }
+        }
+      }
       final meta = json['meta'];
       if (meta is! Map) return const Err('No metadata returned');
       final details = StremioParsers.metaDetail(Map<String, dynamic>.from(meta));

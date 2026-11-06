@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:aero_core/aero_core.dart';
 import 'package:dio/dio.dart';
 
@@ -142,6 +144,16 @@ class StremioApi {
   /// Some add-ons serve JSON with the wrong content type; decode defensively.
   static Map<String, dynamic>? _asMap(Object? data) {
     if (data is Map) return Map<String, dynamic>.from(data);
+    if (data is String) {
+      final t = data.trim();
+      if (!t.startsWith('{')) return null; // HTML, XML, empty
+      try {
+        final decoded = jsonDecode(t);
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      } on FormatException {
+        return null;
+      }
+    }
     return null;
   }
 

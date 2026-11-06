@@ -11,6 +11,7 @@ class CatalogRow {
     this.hasMore = false,
     this.genres = const [],
     this.searchable = false,
+    this.requiredExtras = const [],
   });
 
   final String sourceId;
@@ -24,6 +25,13 @@ class CatalogRow {
   /// True when the add-on declares a `search` extra for this catalog.
   final bool searchable;
 
+  /// Extras the add-on requires before this catalog returns anything.
+  final List<String> requiredExtras;
+
+  /// Whether this can be a passive Home row.
+  bool get isHomeEligible =>
+      !requiredExtras.any((e) => e != 'skip' && e != 'limit');
+
   CatalogRow withItems(List<MediaItem> newItems, {bool? hasMore}) => CatalogRow(
         sourceId: sourceId,
         catalogId: catalogId,
@@ -33,6 +41,7 @@ class CatalogRow {
         hasMore: hasMore ?? this.hasMore,
         genres: genres,
         searchable: searchable,
+        requiredExtras: requiredExtras,
       );
 }
 
