@@ -90,6 +90,36 @@ jobs:
         working-directory: packages/eco_nuvio
         run: flutter test
 
+      - name: Test aero_ui (TV focus / D-pad)
+        working-directory: packages/aero_ui
+        run: flutter test
+
       - name: Test app
         working-directory: apps/aero_app
         run: flutter test
+
+      # Phase 1 exit criterion 6: >=70% line coverage in the two packages that
+      # carry the domain and the shipping ecosystem.
+      - name: Coverage gate (aero_core, eco_stremio >= 70%)
+        run: |
+          dart pub global activate coverage
+          export PATH="$PATH:$HOME/.pub-cache/bin"
+          fail=0
+          for p in aero_core eco_stremio; do
+            ( cd "packages/$p" \
+              && dart test --coverage=coverage \
+              && dart pub global run coverage:format_coverage \
+                   --lcov -i coverage -o coverage/lcov.info \
+                   --report-on=lib --package=. )
+            pct=$(awk -F: '
+              /^LF:/ { total += $2 }
+              /^LH:/ { hit   += $2 }
+              END { if (total > 0) printf "%.1f", 100 * hit / total; else print "0.0" }
+            ' "packages/$p/coverage/lcov.info")
+            echo "$p line coverage: $pct%"
+            if awk -v v="$pct" 'BEGIN { exit !(v < 70) }'; then
+              echo "::error::$p coverage $pct% is below the 70% minimum"
+              fail=1
+            fi
+          done
+          exit $fail
