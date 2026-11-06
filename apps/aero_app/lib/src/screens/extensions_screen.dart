@@ -822,7 +822,7 @@ class _SourceTileState extends ConsumerState<_SourceTile> {
           );
         });
       case 'diagnose':
-        context.push('${Routes.settings}/diagnostics', extra: s);
+        unawaited(context.push('${Routes.settings}/diagnostics', extra: s));
       case 'update':
         setState(() { _busy = true; _status = null; });
         final res = await adapter.checkUpdate(s.id);
