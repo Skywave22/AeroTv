@@ -72,7 +72,7 @@ class _AeroAppState extends ConsumerState<AeroApp> {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: AeroTheme.dark(),
-        home: BootstrapErrorScreen(error: bootError!),
+        home: BootstrapErrorScreen(error: bootError),
       );
     }
 
