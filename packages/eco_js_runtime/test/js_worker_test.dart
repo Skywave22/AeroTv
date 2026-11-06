@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:aero_core/aero_core.dart';
 import 'package:eco_js_runtime/eco_js_runtime.dart';
 import 'package:flutter_test/flutter_test.dart';
 
