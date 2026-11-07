@@ -208,8 +208,6 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
     final formKey = GlobalKey<FormState>();
     String? error;
     var busy = false;
-    // JS ecosystems ship repositories, so default to that mode for them.
-    var asRepo = _repoFirst;
 
     await showDialog<void>(
       context: context,
@@ -224,39 +222,16 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (_repoFirst) ...[
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(
-                          value: true,
-                          label: Text('Repository'),
-                          icon: Icon(Icons.folder_open_rounded, size: 16),
-                        ),
-                        ButtonSegment(
-                          value: false,
-                          label: Text('Single plugin'),
-                          icon: Icon(Icons.extension_rounded, size: 16),
-                        ),
-                      ],
-                      selected: {asRepo},
-                      showSelectedIcon: false,
-                      onSelectionChanged: busy
-                          ? null
-                          : (v) => setDialogState(() {
-                                asRepo = v.first;
-                                error = null;
-                              }),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
                   Text(
-                    asRepo
+                    _repoFirst
                         ? (_acceptsCode
                             ? 'Paste the repository index, or enter its '
                                 'shortcode. You will be able to pick which '
                                 'plugins to install.'
                             : 'Paste the repository index. You will be able to '
                                 'pick which plugins to install.')
+                        // Single-URL ecosystems (Stremio add-ons) are added by
+                        // their manifest, not by a repository index.
                         : _emptyHint(_selected),
                     style: Theme.of(dialogContext).textTheme.bodySmall,
                   ),
@@ -266,16 +241,16 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                     autofocus: true,
                     keyboardType: TextInputType.url,
                     decoration: InputDecoration(
-                      labelText: asRepo && _acceptsCode
+                      labelText: _repoFirst && _acceptsCode
                           ? 'Repository URL or shortcode'
-                          : asRepo
+                          : _repoFirst
                               ? 'Repository URL'
-                              : 'Plugin URL',
-                      hintText: asRepo ? _repoHint : _emptyHint(_selected),
+                              : 'Manifest URL',
+                      hintText: _repoFirst ? _repoHint : _emptyHint(_selected),
                       errorText: error,
                     ),
                     validator: (v) => (v == null || v.trim().isEmpty)
-                        ? (_acceptsCode && asRepo
+                        ? (_acceptsCode && _repoFirst
                             ? 'Enter a URL or code'
                             : 'Enter a URL')
                         : null,
@@ -324,7 +299,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                           .forEcosystem(_selected);
                       if (adapter == null) return;
 
-                      if (asRepo && adapter is RepositorySource) {
+                      if (adapter is RepositorySource) {
                         // A shortcode is an untrusted redirect and the repo it
                         // points at is code we will run, so resolve and guard
                         // before anything is fetched.
@@ -366,6 +341,18 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                         return;
                       }
 
+                      if (_repoFirst) {
+                        // Repository ecosystems are installed through their
+                        // index only: a bare plugin URL skips the repository
+                        // entry, its manifest fields and its checksum pin.
+                        setDialogState(() {
+                          busy = false;
+                          error = 'Add the repository this plugin comes from, '
+                              'then install it from the list.';
+                        });
+                        return;
+                      }
+
                       final res = await adapter.install(SourceRef(
                         ecosystem: _selected,
                         url: url,
@@ -389,7 +376,7 @@ class _ExtensionsScreenState extends ConsumerState<ExtensionsScreen> {
                         });
                       }
                     },
-              child: Text(asRepo ? 'Browse' : 'Install'),
+              child: Text(_repoFirst ? 'Browse' : 'Install'),
             ),
           ],
         ),

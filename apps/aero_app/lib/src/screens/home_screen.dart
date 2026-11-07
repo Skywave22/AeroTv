@@ -72,7 +72,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         'set a TMDB key to fill Home with trending and popular '
                         'titles while your scrapers supply the streams.',
                     actionLabel: 'Add an add-on',
-                    onAction: () => context.openExtensions(),
+                    onAction: () => context.openProviders(),
                     secondaryLabel: tmdbConfigured ? 'Learn more' : 'Set TMDB key',
                     onSecondary: () => tmdbConfigured
                         ? _showAboutSources(context)
@@ -92,7 +92,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 actionLabel: 'Retry',
                 onAction: () => ref.invalidate(homeRowsProvider),
                 secondaryLabel: 'Manage add-ons',
-                onSecondary: () => context.openExtensions(),
+                onSecondary: () => context.openProviders(),
               ),
               data: (rows) {
                 if (rows.isEmpty) {
@@ -116,7 +116,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         actionLabel:
                             tmdbConfigured ? 'Manage add-ons' : 'Set TMDB key',
                         onAction: () => tmdbConfigured
-                            ? context.openExtensions()
+                            ? context.openProviders()
                             : context.go(Routes.settings),
                         secondaryLabel: 'Retry',
                         onSecondary: () => ref.invalidate(homeRowsProvider),

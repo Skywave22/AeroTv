@@ -27,13 +27,8 @@ class ProvidersScreen extends ConsumerWidget {
         title: const Text('Providers'),
         actions: [
           IconButton(
-            tooltip: 'Add a plugin',
+            tooltip: 'Add a provider',
             icon: const Icon(Icons.add_rounded),
-            onPressed: () => context.openExtensions(),
-          ),
-          IconButton(
-            tooltip: 'Extensions manager',
-            icon: const Icon(Icons.tune_rounded),
             onPressed: () => context.openExtensions(),
           ),
         ],
@@ -220,7 +215,7 @@ class _ProviderTile extends ConsumerWidget {
       // page rather than selecting it in a picker that no longer exists.
       context.openProviderHome(source);
     } else {
-      context.openExtensions(ecosystem: source.ecosystem);
+      context.openProviderSettings(source);
     }
   }
 }
