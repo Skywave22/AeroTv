@@ -8,6 +8,22 @@ import 'package:aero_core/aero_core.dart';
 class StremioParsers {
   const StremioParsers._();
 
+  /// Reads a cross-ecosystem id, preferring the spec's `behaviorHints` map
+  /// (`{'tmdb_id': '550'}`) and falling back to a top-level key for add-ons
+  /// that predate it.
+  static String? _crossId(Map<String, dynamic> j, String name) {
+    final hints = j['behaviorHints'];
+    if (hints is Map) {
+      final v = hints['${name}_id'] ?? hints[name];
+      if (v != null && v.toString().trim().isNotEmpty) return v.toString().trim();
+    }
+    final top = j['${name}_id'];
+    if (top != null && top.toString().trim().isNotEmpty) {
+      return top.toString().trim();
+    }
+    return null;
+  }
+
   /// `meta` preview object → [MediaItem].
   static MediaItem? metaPreview(Map<String, dynamic> j) {
     final id = j['id']?.toString();
@@ -19,7 +35,11 @@ class StremioParsers {
         id: id,
         type: type,
         imdbId: imdb,
-        tmdbId: j['tmdb_id']?.toString(),
+        // The spec puts cross-ecosystem ids in `behaviorHints`, and community
+        // add-ons widely populate that instead of a top-level `tmdb_id`.
+        // Without this, a title opened from an add-on catalogue reaches Nuvio
+        // scrapers with no TMDB id, and every scraper silently returns nothing.
+        tmdbId: _crossId(j, 'tmdb'),
         title: j['name']?.toString(),
         year: _year(j['releaseInfo'] ?? j['year']),
       ),

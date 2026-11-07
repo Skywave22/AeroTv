@@ -11,6 +11,7 @@ import '../screens/library_screen.dart';
 import '../screens/logs_screen.dart';
 import '../screens/source_diagnostics_screen.dart';
 import '../screens/provider_home_screen.dart';
+import '../screens/provider_settings_screen.dart';
 import '../screens/providers_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/settings_screen.dart';
@@ -26,6 +27,7 @@ class Routes {
   static const providers = '/providers';
   static const settings = '/settings';
   static const extensions = '/extensions';
+  static const providerSettings = '/provider-settings';
   static const logs = '/logs';
   static const diagnostics = '/diagnostics';
   static const providerHome = '/provider';
@@ -143,6 +145,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+      // Each provider's own settings screen, not a shared menu: SkyStream and
+      // Vega providers carry different config, and a generic sheet hid that.
+      GoRoute(
+        path: Routes.providerSettings,
+        parentNavigatorKey: _rootKey,
+        builder: (context, state) {
+          final extra = state.extra;
+          return ProviderSettingsScreen(
+            source: extra is InstalledSource ? extra : null,
+            sourceId: state.uri.queryParameters['id'],
+            ecosystemId: state.uri.queryParameters['eco'],
+          );
+        },
+      ),
       GoRoute(
         path: Routes.details,
         parentNavigatorKey: _rootKey,
@@ -188,6 +204,15 @@ extension AeroNavigation on BuildContext {
   void openDiagnostics(InstalledSource source) {
     push('${Routes.settings}/diagnostics', extra: source);
   }
+
+  /// A provider's own settings page (enable, priority, update, remove).
+  void openProviderSettings(InstalledSource source) {
+    push(Routes.providerSettings, extra: source);
+  }
+
+  /// The add-provider / install flow. Still reachable from the Providers tab
+  /// and from Browse, but no longer from Settings.
+  void openProviders() => go(Routes.providers);
 
   void openExtensions({Ecosystem? ecosystem}) {
     final q = ecosystem == null ? '' : '?eco=${ecosystem.id}';

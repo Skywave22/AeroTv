@@ -177,6 +177,49 @@ final streamResolverProvider = Provider<StreamResolver>((ref) {
   );
 });
 
+/// A [PlayRequest] carrying every external id the target ecosystems need.
+///
+/// This is the bridge the product's split depends on. Home is filled by TMDB
+/// and Stremio add-ons, but Nuvio scrapers are **TMDB-keyed** while Stremio
+/// add-ons are **IMDb-keyed**. A title opened from Home may arrive with only a
+/// TMDB id (a TMDB row) or only an IMDb id (an add-on catalogue, which carries
+/// the TMDB id in `behaviorHints`). Resolving both once here is what stops one
+/// ecosystem silently returning nothing.
+Future<PlayRequest> preparePlayRequest(WidgetRef ref, PlayRequest request) async {
+  final resolver = ref.read(metadataResolverProvider);
+  var enriched = await resolver.enrich(request.ref);
+
+  // Last resort for a title with neither id: ask TMDB by name and year.
+  final noTmdb = enriched.tmdbId == null || enriched.tmdbId!.isEmpty;
+  if (!enriched.hasImdb && noTmdb && (enriched.title ?? '').isNotEmpty) {
+    try {
+      final found = await resolver.lookup?.findByTitle(
+        enriched.title!,
+        year: enriched.year,
+        type: enriched.type,
+      );
+      if (found != null) {
+        // copyWith treats null as "leave unchanged", so only pass real ids.
+        enriched = enriched.copyWith(
+          imdbId: found.imdbId ?? enriched.imdbId,
+          tmdbId: found.tmdbId ?? enriched.tmdbId,
+        );
+      }
+    } catch (_) {
+      // Playback still proceeds; a source may match on the native id.
+    }
+  }
+
+  if (identical(enriched, request.ref)) return request;
+  return PlayRequest(
+    ref: enriched,
+    season: request.season,
+    episode: request.episode,
+    episodeId: request.episodeId,
+    bingeGroup: request.bingeGroup,
+  );
+}
+
 /// ---------------------------------------------------------------- settings
 
 final playerSettingsProvider = StateProvider<PlayerSettings>(
@@ -241,8 +284,9 @@ final homeRowsProvider = FutureProvider<List<HomeRow>>((ref) async {
       .rows()
       .catchError((Object _) => <CatalogRow>[]);
 
-  final eligible = HomeComposer.eligibleSources(sources,
-      unavailable: unavailable);
+  // Home is TMDB + add-on catalogues. Browse-only providers and streams-only
+  // scrapers are excluded by the policy, not by a name check here.
+  final eligible = BrowsePolicy.homeSources(sources, unavailable: unavailable);
 
   final rows = await HomeComposer.build(
     sources: eligible,
@@ -423,6 +467,82 @@ final nonBrowsableSourcesProvider = FutureProvider<List<InstalledSource>>((ref) 
     final a = registry.forEcosystem(s.ecosystem);
     return a != null && !a.capabilities.contains(Capability.catalogs);
   }).toList();
+});
+
+/// Ecosystems whose adapter cannot run on this platform.
+Set<Ecosystem> unavailableEcosystems(AdapterRegistry registry) => {
+      for (final eco in Ecosystem.values)
+        if (registry.forEcosystem(eco) case final a?)
+          if (!a.isAvailable) eco,
+    };
+
+/// The providers Browse may show: SkyStream, Vega, CloudStream.
+///
+/// Add-ons belong to Home and Nuvio scrapers only supply streams, so neither is
+/// browsable. The rule lives in [BrowsePolicy] so every screen agrees on it.
+final policyBrowsableSourcesProvider =
+    FutureProvider<List<InstalledSource>>((ref) async {
+  final all = await ref.watch(installedSourcesProvider.future);
+  final registry = ref.watch(adapterRegistryProvider);
+  return BrowsePolicy.browsableSources(
+    all,
+    unavailable: unavailableEcosystems(registry),
+  );
+});
+
+/// Every installed source that can contribute streams: Stremio add-ons plus
+/// Nuvio scrapers. This is what the play sheet fans out to.
+final streamSourcesProvider =
+    FutureProvider<List<InstalledSource>>((ref) async {
+  final all = await ref.watch(installedSourcesProvider.future);
+  final registry = ref.watch(adapterRegistryProvider);
+  return BrowsePolicy.streamSources(
+    all,
+    unavailable: unavailableEcosystems(registry),
+  );
+});
+
+/// The provider Browse is showing, falling back to the first browsable one when
+/// the selection is empty or stale (uninstalled, disabled, restored session).
+final activeBrowseSourceProvider =
+    FutureProvider<InstalledSource?>((ref) async {
+  final sources = await ref.watch(policyBrowsableSourcesProvider.future);
+  if (sources.isEmpty) return null;
+  final selected = ref.watch(browseSelectionProvider);
+  if (selected != null) {
+    for (final s in sources) {
+      if (s.key == selected) return s;
+    }
+  }
+  return sources.first;
+});
+
+/// Query for the Browse tab's in-provider search.
+final browseSearchQueryProvider = StateProvider<String>((ref) => '');
+
+/// Searches **only** the provider currently being browsed, unlike the global
+/// Search tab which fans out across everything installed.
+final browseSearchProvider = FutureProvider<List<MediaItem>>((ref) async {
+  final query = ref.watch(browseSearchQueryProvider).trim();
+  if (query.length < 2) return const [];
+  final source = await ref.watch(activeBrowseSourceProvider.future);
+  if (source == null) return const [];
+  final registry = ref.watch(adapterRegistryProvider);
+  final adapter = registry.forEcosystem(source.ecosystem);
+  if (adapter == null ||
+      !adapter.isAvailable ||
+      !source.can(Capability.search)) {
+    return const [];
+  }
+  try {
+    final page = await adapter
+        .search(source.id, query)
+        .timeout(const Duration(seconds: 15));
+    return page.items;
+  } catch (e) {
+    AeroLog.instance.w('browse', 'search failed on ${source.name}: $e');
+    return const [];
+  }
 });
 
 /// Which plugin the Browse tab is showing. Null means "pick the first".

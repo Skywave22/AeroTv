@@ -5,67 +5,127 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../routing/app_router.dart';
 import '../state/providers.dart';
+import '../widgets/browse_search_overlay.dart';
+import '../widgets/hero_from_row.dart';
+import '../widgets/source_sheet.dart' show SourcePickerSheet;
 
-/// Browse — the extension list.
+/// Browse — SkyStream's own home, per provider.
 ///
-/// A section per ecosystem with that ecosystem's providers underneath, the way
-/// SkyStream presents its own extensions: SkyStream first, then Vega, then
-/// CloudStream. Tapping a provider opens its own page with its own hero and
-/// categories.
+/// This tab is deliberately not a plugin list any more. It reproduces what a
+/// SkyStream user sees when they open the app: the selected provider's home
+/// feed, its "Trending" category promoted to a hero, its remaining categories
+/// as rows, and two controls in the corner — **source** (switch provider) and
+/// **search**.
 ///
-/// Empty sections are still shown, with an add action, so an ecosystem is
-/// discoverable before anything is installed. CloudStream is listed as
-/// "Beta soon" rather than hidden or faked. Streams-only scrapers are listed to
-/// explain where they do appear.
-class BrowseScreen extends ConsumerWidget {
+/// Which providers can appear here is decided by [BrowsePolicy] in `aero_core`:
+/// SkyStream, Vega and CloudStream. Stremio add-ons fill Home instead, and
+/// Nuvio scrapers only supply streams at play time, so neither is browsable.
+class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isTv = ref.watch(isTvProvider);
-    final formFactor = Adaptive.detect(context, isTv: isTv);
-    final sourcesAsync = ref.watch(installedSourcesProvider);
-    final registry = ref.watch(adapterRegistryProvider);
+  ConsumerState<BrowseScreen> createState() => _BrowseScreenState();
+}
 
-    final unavailable = <Ecosystem, String>{
-      for (final eco in Ecosystem.values)
-        if (registry.forEcosystem(eco) case final adapter?)
-          if (!adapter.isAvailable)
-            eco: adapter.unavailableReason ?? 'Not available on this platform',
-    };
+class _BrowseScreenState extends ConsumerState<BrowseScreen> {
+  final _focusMemory = RowFocusMemory();
+
+  @override
+  void dispose() {
+    _focusMemory.clear();
+    super.dispose();
+  }
+
+  Future<void> _openSourceSheet() async {
+    final sources = await ref.read(policyBrowsableSourcesProvider.future);
+    if (!mounted) return;
+    final currentKey = ref.read(activeBrowseSourceProvider).valueOrNull?.key;
+    final picked = await showModalBottomSheet<String?>(
+      context: context,
+      backgroundColor: AeroColors.surface,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => SourcePickerSheet(
+        sources: sources,
+        selectedKey: currentKey,
+      ),
+    );
+    if (picked == null || picked == currentKey) return;
+    // Selecting a source also makes it the browsed provider everywhere.
+    ref.read(browseSelectionProvider.notifier).state = picked;
+  }
+
+  void _openSearch() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => const BrowseSearchOverlay(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isTv = ref.watch(isTvProvider);
+    final ui = ref.watch(uiSettingsProvider);
+    final formFactor = Adaptive.detect(context, isTv: isTv);
+    final sourcesAsync = ref.watch(policyBrowsableSourcesProvider);
+    final activeAsync = ref.watch(activeBrowseSourceProvider);
 
     return Scaffold(
       body: sourcesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => EmptyState(
-          icon: Icons.error_outline_rounded,
-          title: 'Could not load your providers',
-          message: '$e',
-          actionLabel: 'Retry',
-          onAction: () => ref.invalidate(installedSourcesProvider),
+        error: (e, _) => _Shell(
+          actions: _CornerActions(
+            onSource: null,
+            onSearch: _openSearch,
+            sourceLabel: 'Source',
+          ),
+          child: EmptyState(
+            icon: Icons.error_outline_rounded,
+            title: 'Could not load providers',
+            message: '$e',
+            actionLabel: 'Retry',
+            onAction: () => ref.invalidate(installedSourcesProvider),
+          ),
         ),
         data: (sources) {
-          final sections = ProviderDirectory.build(
-            sources,
-            unavailable: unavailable,
-          );
-          final pad = Adaptive.pagePadding(formFactor);
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(installedSourcesProvider);
-              await ref.read(installedSourcesProvider.future);
-            },
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(pad, 12, pad, 40),
-              children: [
-                for (final section in sections)
-                  _Section(
-                    section: section,
-                    formFactor: formFactor,
-                    canOpen: (s) =>
-                        ProviderDirectory.canOpen(s, unavailable: unavailable),
-                  ),
-              ],
+          if (sources.isEmpty) {
+            return _Shell(
+              actions: _CornerActions(
+                onSource: null,
+                onSearch: null,
+                sourceLabel: 'Source',
+              ),
+              child: EmptyState(
+                icon: Icons.travel_explore_rounded,
+                title: 'No providers to browse yet',
+                message:
+                    'Browse shows SkyStream, Vega and CloudStream providers — '
+                    'each one a whole site with its own categories.\n\n'
+                    'Stremio add-ons fill Home instead, and Nuvio scrapers '
+                    'only supply streams when you press play.',
+                actionLabel: 'Add a provider',
+                onAction: () => context.openProviders(),
+              ),
+            );
+          }
+
+          final active = activeAsync.valueOrNull ?? sources.first;
+          return _Shell(
+            actions: _CornerActions(
+              onSource: sources.length > 1 ? _openSourceSheet : null,
+              onSearch: () => _openSearch(),
+              sourceLabel: active.name,
+            ),
+            child: _ProviderHome(
+              sourceKey: active.key,
+              formFactor: formFactor,
+              rotationSeconds: ui.heroRotationSeconds,
+              reduceMotion: ui.reduceMotion,
+              focusMemory: _focusMemory,
+              onSwitchSource: _openSourceSheet,
+              onSearch: _openSearch,
             ),
           );
         },
@@ -74,163 +134,122 @@ class BrowseScreen extends ConsumerWidget {
   }
 }
 
-class _Section extends StatelessWidget {
-  const _Section({
-    required this.section,
-    required this.formFactor,
-    required this.canOpen,
-  });
+/// Shared chrome so the loading, empty and error states keep the corner
+/// controls in the same place — on a TV a control that moves between states is
+/// a control the user cannot find.
+class _Shell extends StatelessWidget {
+  const _Shell({required this.actions, required this.child});
 
-  final ProviderSection section;
-  final FormFactor formFactor;
-  final bool Function(InstalledSource) canOpen;
+  final Widget actions;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final eco = section.ecosystem;
-    final tint = Color(eco.colorSeed);
+    return SafeArea(
+      child: Stack(
+        children: [
+          Positioned.fill(child: child),
+          Positioned(top: 8, right: 12, child: actions),
+        ],
+      ),
+    );
+  }
+}
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+/// The two corner controls SkyStream puts on its home: source and search.
+class _CornerActions extends StatelessWidget {
+  const _CornerActions({
+    required this.onSource,
+    required this.onSearch,
+    required this.sourceLabel,
+  });
+
+  final VoidCallback? onSource;
+  final VoidCallback? onSearch;
+  final String sourceLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 18, bottom: 6),
-          child: Row(
-            children: [
-              Container(
-                width: 4,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: tint,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  section.title,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-              if (section.isBeta)
-                const MetaChip(label: 'Beta soon', tone: MetaChipTone.warning)
-              else
-                Text(
-                  '${section.sources.length}',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: AeroColors.textTertiary),
-                ),
-            ],
-          ),
+        _CornerButton(
+          icon: Icons.swap_horiz_rounded,
+          label: sourceLabel,
+          onTap: onSource,
+          tooltip: onSource == null
+              ? 'The only provider installed'
+              : 'Change source',
         ),
-        Padding(
-          padding: const EdgeInsets.only(left: 14, bottom: 10),
-          child: Text(
-            section.note,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: AeroColors.textSecondary),
-          ),
+        const SizedBox(width: 8),
+        _CornerButton(
+          icon: Icons.search_rounded,
+          label: null,
+          onTap: onSearch,
+          tooltip: 'Search this provider',
         ),
-        for (final s in section.sources)
-          _ProviderTile(
-            source: s,
-            enabled: section.isOpenable && canOpen(s),
-            formFactor: formFactor,
-          ),
-        if (section.isEmpty && !section.isStreamsOnly)
-          _AddTile(section: section, formFactor: formFactor),
-        if (!section.isEmpty && !section.isStreamsOnly && !section.isBeta)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 6, top: 2),
-              child: TextButton.icon(
-                onPressed: () => context.openExtensions(ecosystem: eco),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: Text('Add ${section.noun.toLowerCase()}'),
-              ),
-            ),
-          ),
-        const SizedBox(height: 6),
-        const Divider(height: 1),
       ],
     );
   }
 }
 
-class _ProviderTile extends StatelessWidget {
-  const _ProviderTile({
-    required this.source,
-    required this.enabled,
-    required this.formFactor,
+class _CornerButton extends StatelessWidget {
+  const _CornerButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.tooltip,
   });
 
-  final InstalledSource source;
-  final bool enabled;
-  final FormFactor formFactor;
+  final IconData icon;
+  final String? label;
+  final VoidCallback? onTap;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tint = Color(source.ecosystem.colorSeed);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+    return Tooltip(
+      message: tooltip,
       child: TvFocus(
-        borderRadius: 12,
-        enabled: enabled,
-        onSelect: enabled
-            ? () => context.openProviderHome(source)
-            : null,
-        child: Opacity(
-          opacity: enabled ? 1 : 0.55,
-          child: Container(
-            padding: EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: formFactor == FormFactor.tv ? 16 : 10),
-            decoration: BoxDecoration(
-              color: AeroColors.surfaceHigh,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: tint.withValues(alpha: 0.18),
-                  backgroundImage: source.logo == null
-                      ? null
-                      : NetworkImage(source.logo!),
-                  child: source.logo == null
-                      ? Icon(Icons.extension_rounded, size: 16, color: tint)
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        source.name,
-                        style: theme.textTheme.bodyLarge
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        source.enabled
-                            ? 'v${source.version}'
-                            : 'v${source.version} · disabled',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: AeroColors.textTertiary),
-                      ),
-                    ],
+        borderRadius: 22,
+        enabled: onTap != null,
+        onSelect: onTap,
+        child: Material(
+          color: AeroColors.surfaceHigh.withValues(alpha: 0.86),
+          borderRadius: BorderRadius.circular(22),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: onTap,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: label == null ? 12 : 16,
+                vertical: 10,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 18,
+                    color: onTap == null
+                        ? AeroColors.textTertiary
+                        : AeroColors.textPrimary,
                   ),
-                ),
-                if (enabled)
-                  const Icon(Icons.chevron_right_rounded,
-                      color: AeroColors.textTertiary),
-              ],
+                  if (label != null) ...[
+                    const SizedBox(width: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 160),
+                      child: Text(
+                        label!,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
@@ -239,51 +258,137 @@ class _ProviderTile extends StatelessWidget {
   }
 }
 
-class _AddTile extends StatelessWidget {
-  const _AddTile({required this.section, required this.formFactor});
+/// One provider's own world. The composition rule ("Trending" becomes the hero
+/// and leaves the rows) lives in `pluginHomeProvider`, shared with every other
+/// ecosystem that can produce a home feed.
+class _ProviderHome extends ConsumerWidget {
+  const _ProviderHome({
+    required this.sourceKey,
+    required this.formFactor,
+    required this.rotationSeconds,
+    required this.reduceMotion,
+    required this.focusMemory,
+    required this.onSwitchSource,
+    required this.onSearch,
+  });
 
-  final ProviderSection section;
+  final String sourceKey;
   final FormFactor formFactor;
+  final int rotationSeconds;
+  final bool reduceMotion;
+  final RowFocusMemory focusMemory;
+  final VoidCallback onSwitchSource;
+  final VoidCallback onSearch;
 
   @override
-  Widget build(BuildContext context) {
-    final beta = section.isBeta;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: TvFocus(
-        borderRadius: 12,
-        enabled: !beta,
-        onSelect: beta
-            ? null
-            : () => context.openExtensions(ecosystem: section.ecosystem),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: formFactor == FormFactor.tv ? 18 : 14),
-          decoration: BoxDecoration(
-            border: Border.all(color: AeroColors.outline),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(beta ? Icons.schedule_rounded : Icons.add_rounded,
-                  size: 18, color: AeroColors.textTertiary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  beta
-                      ? 'CloudStream support is in beta soon'
-                      : 'No ${section.noun.toLowerCase()} yet — add one',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: AeroColors.textSecondary),
-                ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(pluginHomeProvider(sourceKey));
+    final pad = Adaptive.pagePadding(formFactor);
+
+    return async.when(
+      loading: () => ListView(
+        padding: EdgeInsets.symmetric(horizontal: pad, vertical: 12),
+        children: [
+          Shimmer(height: formFactor == FormFactor.phone ? 200 : 320, radius: 16),
+          const SizedBox(height: 24),
+          for (var i = 0; i < 2; i++) ...[
+            const Shimmer(width: 160, height: 18, radius: 4),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: PosterSkeleton.heightFor(Adaptive.posterWidth(formFactor)),
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: 6,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: (_, _) =>
+                    PosterSkeleton(width: Adaptive.posterWidth(formFactor)),
               ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ],
+      ),
+      error: (e, _) => EmptyState(
+        icon: Icons.error_outline_rounded,
+        title: 'This provider failed to load',
+        message: '$e',
+        actionLabel: 'Try again',
+        onAction: () => ref.invalidate(pluginHomeProvider(sourceKey)),
+        secondaryLabel: 'Switch source',
+        onSecondary: onSwitchSource,
+      ),
+      data: (home) {
+        if (home.error != null) {
+          return EmptyState(
+            icon: Icons.warning_amber_rounded,
+            title: 'Could not open ${home.source.name}',
+            message: home.error!,
+            actionLabel: 'Try again',
+            onAction: () => ref.invalidate(pluginHomeProvider(sourceKey)),
+            secondaryLabel: 'Switch source',
+            onSecondary: onSwitchSource,
+          );
+        }
+        if (home.isEmpty) {
+          return EmptyState(
+            icon: Icons.inbox_outlined,
+            title: '${home.source.name} returned nothing',
+            message: 'The provider loaded but its home feed is empty. '
+                'The site may be down or blocking requests.',
+            actionLabel: 'Try again',
+            onAction: () => ref.invalidate(pluginHomeProvider(sourceKey)),
+            secondaryLabel: 'Search instead',
+            onSecondary: onSearch,
+          );
+        }
+
+        void open(MediaItem item) => context.openDetails(
+              item.ref,
+              sourceId: home.source.id,
+              ecosystem: home.source.ecosystem,
+            );
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(pluginHomeProvider(sourceKey));
+            try {
+              await ref.read(pluginHomeProvider(sourceKey).future);
+            } catch (_) {
+              // Rendered by the error branch above.
+            }
+          },
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 32),
+            children: [
+              if (home.hero.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: pad),
+                  child: HeroBanner(
+                    items: pickHeroItems(home.hero),
+                    formFactor: formFactor,
+                    rotationSeconds: rotationSeconds,
+                    reduceMotion: reduceMotion,
+                    onPlay: open,
+                    onMoreInfo: open,
+                  ),
+                )
+              else
+                SizedBox(height: pad),
+              const SizedBox(height: 18),
+              for (final row in home.rows)
+                MediaRow(
+                  rowKey: '${home.source.id}:${row.catalogId}',
+                  title: row.title,
+                  items: row.items,
+                  formFactor: formFactor,
+                  focusMemory: focusMemory,
+                  reduceMotion: reduceMotion,
+                  onSelect: open,
+                ),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

@@ -360,3 +360,186 @@ class _StreamTile extends StatelessWidget {
     );
   }
 }
+
+/// Picks which provider Browse is showing.
+///
+/// The corner "source" control on the Browse tab opens this — the same control
+/// SkyStream puts on its own home. It lists only the providers that can
+/// actually be browsed (see `BrowsePolicy`), plus a row for every ecosystem
+/// that is deliberately not here, with the reason — so a user who wonders where
+/// their add-ons went gets an answer instead of a blank tab.
+class SourcePickerSheet extends StatelessWidget {
+  const SourcePickerSheet({
+    required this.sources,
+    this.selectedKey,
+    this.onManage,
+    super.key,
+  });
+
+  final List<InstalledSource> sources;
+  final String? selectedKey;
+  final VoidCallback? onManage;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final absent = [
+      for (final eco in Ecosystem.values)
+        if (BrowsePolicy.absentReason(eco) case final reason?)
+          (ecosystem: eco, reason: reason),
+    ];
+
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('Source',
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                  ),
+                  if (onManage != null)
+                    TextButton.icon(
+                      onPressed: onManage,
+                      icon: const Icon(Icons.tune_rounded, size: 16),
+                      label: const Text('Manage'),
+                    ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                children: [
+                  for (final s in sources)
+                    _PickerRow(
+                      title: s.name,
+                      subtitle: '${s.ecosystem.displayName} · v${s.version}',
+                      tint: Color(s.ecosystem.colorSeed),
+                      logo: s.logo,
+                      selected: s.key == selectedKey,
+                      onTap: () => Navigator.of(context).pop(s.key),
+                    ),
+                  if (absent.isNotEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(8, 16, 8, 6),
+                      child: Divider(height: 1),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                      child: Text(
+                        'Not browsable',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: AeroColors.textTertiary),
+                      ),
+                    ),
+                    for (final a in absent)
+                      _PickerRow(
+                        title: a.ecosystem.displayName,
+                        subtitle: a.reason,
+                        tint: Color(a.ecosystem.colorSeed),
+                        logo: null,
+                        selected: false,
+                        onTap: null,
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PickerRow extends StatelessWidget {
+  const _PickerRow({
+    required this.title,
+    required this.subtitle,
+    required this.tint,
+    required this.logo,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final Color tint;
+  final String? logo;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final enabled = onTap != null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: TvFocus(
+        borderRadius: 12,
+        enabled: enabled,
+        onSelect: onTap,
+        child: Material(
+          color: selected
+              ? tint.withValues(alpha: 0.16)
+              : AeroColors.surfaceHigh.withValues(alpha: enabled ? 1 : 0.5),
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: tint.withValues(alpha: 0.2),
+                    backgroundImage: logo == null ? null : NetworkImage(logo!),
+                    child: logo == null
+                        ? Icon(Icons.extension_rounded, size: 16, color: tint)
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: enabled
+                                ? AeroColors.textPrimary
+                                : AeroColors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          subtitle,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: AeroColors.textTertiary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (selected) Icon(Icons.check_rounded, color: tint, size: 20),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

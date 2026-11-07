@@ -67,14 +67,16 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       final media = item ?? details?.item;
       if (media == null) return;
 
-      final resolver = ref.read(metadataResolverProvider);
-      final enriched = await resolver.enrich(media.ref);
-
-      final req = PlayRequest(
-        ref: enriched,
-        season: episode?.season,
-        episode: episode?.episode,
-        episodeId: episode?.id,
+      // Both ids, because Home is TMDB/add-on fed while the scrapers are
+      // TMDB-keyed and add-ons are IMDb-keyed.
+      final req = await preparePlayRequest(
+        ref,
+        PlayRequest(
+          ref: media.ref,
+          season: episode?.season,
+          episode: episode?.episode,
+          episodeId: episode?.id,
+        ),
       );
 
       final rules = ref.read(rankingRulesProvider);

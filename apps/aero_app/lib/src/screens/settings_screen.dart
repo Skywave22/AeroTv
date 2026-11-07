@@ -30,8 +30,11 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 40),
         children: [
+          // The Extensions Manager no longer lives in Settings: installing and
+          // configuring a provider belongs to that provider's own page (open
+          // it from Browse or Providers), the way SkyStream does it.
           SectionHeader(
-            title: 'Extensions',
+            title: 'Sources',
             subtitle: enabled == 0
                 ? 'No sources enabled yet'
                 : '$enabled source(s) enabled',
@@ -39,9 +42,9 @@ class SettingsScreen extends ConsumerWidget {
           _tile(
             context,
             icon: Icons.extension_rounded,
-            title: 'Extensions Manager',
-            subtitle: 'Stremio, Vega, Nuvio, SkyStream, CloudStream',
-            onTap: () => context.openExtensions(),
+            title: 'Manage providers',
+            subtitle: 'Installed providers, per-ecosystem settings and updates',
+            onTap: () => context.go(Routes.providers),
           ),
           const Divider(indent: 20, endIndent: 20),
 
