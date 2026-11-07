@@ -346,7 +346,13 @@ class VegaAdapter implements EcosystemAdapter, RepositorySource {
   }
 
   @override
-  Future<Result<Duration>> healthCheck(String sourceId) => _mgr.healthCheck(sourceId);
+  Future<Result<Duration>> healthCheck(String sourceId) async {
+    // Boot through providerFor so the module prelude is installed first. A
+    // cold health check used to start the sandbox without it, after which no
+    // Vega module could resolve.
+    await providerFor(sourceId);
+    return _mgr.healthCheck(sourceId);
+  }
 
   @override
   Future<List<CatalogRow>> catalogs(String sourceId) async {

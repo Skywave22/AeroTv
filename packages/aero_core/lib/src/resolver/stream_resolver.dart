@@ -227,8 +227,15 @@ class StreamResolver {
             (link) {
               if (cancelled || controller.isClosed) return;
               // De-dup across providers, keeping the first (highest priority).
-              final dedupKey = link.url.isNotEmpty ? link.url : link.infoHash ?? '';
-              if (dedupKey.isNotEmpty && !seenUrls.add(dedupKey)) return;
+              // Prefixes keep a URL and an infoHash from colliding, and a link
+              // with neither is never de-duped (it used to share the empty
+              // key, so the intent was unclear and two such links collapsed).
+              final String? dedupKey = link.url.isNotEmpty
+                  ? 'u:${link.url}'
+                  : (link.infoHash != null && link.infoHash!.isNotEmpty)
+                      ? 'h:${link.infoHash!.toLowerCase()}'
+                      : null;
+              if (dedupKey != null && !seenUrls.add(dedupKey)) return;
               final withLatency =
                   link.copyWith(latencyMs: sourceSw.elapsedMilliseconds);
               collected.add(withLatency);

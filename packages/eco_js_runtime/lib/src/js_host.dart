@@ -72,13 +72,6 @@ class JsPluginHost {
         return Err('Plugin failed to load: ${res.stringResult}');
       }
 
-      // Enforce a QuickJS memory ceiling where the engine supports it.
-      _runtime!.evaluate('''
-        if (typeof __setMemoryLimit === 'function') {
-          __setMemoryLimit(${policy.memoryLimitBytes});
-        }
-      ''');
-
       _ready = true;
       AeroLog.instance.i('js:$pluginName', 'Context ready (${bundle.code.length} bytes)');
       return const Ok(null);
@@ -94,6 +87,29 @@ class JsPluginHost {
     rt.onMessage('aero:crypto', (args) => unawaited(_handleCrypto(args)));
     rt.onMessage('aero:html', (args) => unawaited(_handleHtml(args)));
     rt.onMessage('aero:timer', (args) => _handleTimer(args));
+    // Registered once per context, not once per call: flutter_js keeps only the
+    // first handler for a channel, so per-call registration silently depended
+    // on that behaviour and would hang on an engine that replaces handlers.
+    rt.onMessage('aero:result', _handleCallResult);
+  }
+
+  /// Completes the pending plugin call identified by the bridge message.
+  void _handleCallResult(Object? raw) {
+    final m = _decode(raw);
+    final rid = (m['id'] as num?)?.toInt();
+    final c = _pendingCalls.remove(rid);
+    if (c == null || c.isCompleted) return;
+    final ok = m['ok'] == true;
+    final payload = m['payload'];
+    if (ok) {
+      try {
+        c.complete(Ok(payload == null ? null : jsonDecode(payload.toString())));
+      } catch (_) {
+        c.complete(Ok(payload?.toString()));
+      }
+    } else {
+      c.complete(Err(payload?.toString() ?? 'Plugin call failed'));
+    }
   }
 
   Map<String, dynamic> _decode(Object? args) {
@@ -462,24 +478,6 @@ class JsPluginHost {
       final callId = _nextCallId++;
       final completer = Completer<Result<dynamic>>();
       _pendingCalls[callId] = completer;
-
-      _runtime!.onMessage('aero:result', (raw) {
-        final m = _decode(raw);
-        final rid = (m['id'] as num?)?.toInt();
-        final c = _pendingCalls.remove(rid);
-        if (c == null || c.isCompleted) return;
-        final ok = m['ok'] == true;
-        final payload = m['payload'];
-        if (ok) {
-          try {
-            c.complete(Ok(payload == null ? null : jsonDecode(payload.toString())));
-          } catch (_) {
-            c.complete(Ok(payload?.toString()));
-          }
-        } else {
-          c.complete(Err(payload?.toString() ?? 'Plugin call failed'));
-        }
-      });
 
       final useCallback = style == JsCallStyle.callback;
       // In callback mode the callback is appended after the positional args.

@@ -39,7 +39,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         onRefresh: () async {
           ref.invalidate(homeRowsProvider);
           ref.invalidate(installedSourcesProvider);
-          await ref.read(homeRowsProvider.future);
+          // A failed refresh must still settle the indicator, otherwise the
+          // spinner spins forever on a flaky connection.
+          try {
+            await ref.read(homeRowsProvider.future);
+          } catch (_) {
+            // The error state is rendered by `rowsAsync.when` below.
+          }
         },
         child: sourcesAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),

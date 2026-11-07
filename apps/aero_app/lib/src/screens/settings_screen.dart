@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:aero_core/aero_core.dart';
@@ -325,19 +326,28 @@ class SettingsScreen extends ConsumerWidget {
         onTap: onTap,
       );
 
+  /// Applies a setting immediately in memory and persists it in the
+  /// background. A failed write is logged rather than swallowed: the UI keeps
+  /// the new value either way, so a silent failure would look like it saved.
+  void _persist(WidgetRef ref, Future<void> write) {
+    unawaited(write.catchError((Object e) {
+      AeroLog.instance.e('settings', 'Could not save setting: $e');
+    }));
+  }
+
   void _setPlayer(WidgetRef ref, PlayerSettings s) {
     ref.read(playerSettingsProvider.notifier).state = s;
-    ref.read(settingsRepoProvider).setPlayer(s);
+    _persist(ref, ref.read(settingsRepoProvider).setPlayer(s));
   }
 
   void _setUi(WidgetRef ref, UiSettings s) {
     ref.read(uiSettingsProvider.notifier).state = s;
-    ref.read(settingsRepoProvider).setUi(s);
+    _persist(ref, ref.read(settingsRepoProvider).setUi(s));
   }
 
   void _setRanking(WidgetRef ref, RankingRules r) {
     ref.read(rankingRulesProvider.notifier).state = r;
-    ref.read(settingsRepoProvider).setRanking(r);
+    _persist(ref, ref.read(settingsRepoProvider).setRanking(r));
   }
 
   Future<bool> _confirm(BuildContext context, String title, String body) async {

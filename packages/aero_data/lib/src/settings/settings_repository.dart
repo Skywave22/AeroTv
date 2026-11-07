@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:aero_core/aero_core.dart';
 
 import '../db/database.dart';
+import 'secure_credentials.dart';
 
 /// Player-side preferences.
 class PlayerSettings {
@@ -155,10 +156,24 @@ class UiSettings {
 
 /// Typed key/value settings on top of the Drift `AppSettings` table, with an
 /// in-memory cache so widgets can read synchronously after bootstrap.
+///
+/// **Secrets never go in SQLite.** The TMDB key is a credential, so it lives in
+/// the platform keystore via [SecureCredentials] and is excluded from
+/// [exportAll] — a backup file the user shares must not carry it. Everything
+/// else is ordinary preference data and belongs in the database.
 class SettingsRepository {
-  SettingsRepository(this.db);
+  /// [credentials] defaults to a keystore-backed store. Tests pass an
+  /// in-memory store; they must pass the *same* instance to a second repository
+  /// built on the same database, or the key will look lost.
+  SettingsRepository(this.db, {SecureCredentials? credentials})
+      : _credentials = credentials ?? SecureCredentials();
 
   final AeroDatabase db;
+  final SecureCredentials _credentials;
+
+  /// The store this repository writes credentials to, exposed so a caller can
+  /// rebuild a repository against the same keystore state (not a fresh one).
+  SecureCredentials get credentials => _credentials;
   final Map<String, Map<String, dynamic>> _cache = {};
 
   static const _kPlayer = 'player';
@@ -167,6 +182,12 @@ class SettingsRepository {
   static const _kTmdbKey = 'tmdbApiKey';
   static const _kOnboarded = 'onboarded';
   static const _kTelemetry = 'telemetryOptIn';
+
+  /// Scope used for app-level (not per-plugin) credentials.
+  static const _appScope = 'app';
+
+  /// Mirrors the keystore value so [tmdbApiKey] stays synchronous.
+  String _tmdbApiKey = '';
 
   Future<void> load() async {
     final rows = await db.select(db.appSettings).get();
@@ -177,6 +198,22 @@ class SettingsRepository {
       } catch (_) {
         // Ignore a corrupt row rather than failing startup.
       }
+    }
+
+    // Migrate a legacy plaintext key out of the database exactly once, then
+    // remove the row so it cannot leak into a backup.
+    final legacy = _cache.remove(_kTmdbKey)?['v']?.toString() ?? '';
+    if (legacy.isNotEmpty) {
+      await _credentials.set(_appScope, 'tmdb', legacy);
+      await (db.delete(db.appSettings)..where((t) => t.key.equals(_kTmdbKey))).go();
+    }
+
+    try {
+      _tmdbApiKey = await _credentials.get(_appScope, 'tmdb') ?? legacy;
+    } catch (_) {
+      // Keystore unavailable (desktop without libsecret, tests): stay empty
+      // rather than crash the bootstrap.
+      _tmdbApiKey = legacy;
     }
   }
 
@@ -197,8 +234,27 @@ class SettingsRepository {
   RankingRules get ranking => RankingRules.fromJson(_cache[_kRanking] ?? const {});
   Future<void> setRanking(RankingRules r) => _write(_kRanking, r.toJson());
 
-  String get tmdbApiKey => (_cache[_kTmdbKey]?['v'] ?? '') as String;
-  Future<void> setTmdbApiKey(String key) => _write(_kTmdbKey, {'v': key});
+  /// The user's own TMDB v3 key. Stored in the keystore, never in SQLite and
+  /// never in an exported backup.
+  String get tmdbApiKey => _tmdbApiKey;
+
+  Future<void> setTmdbApiKey(String key) async {
+    final trimmed = key.trim();
+    _tmdbApiKey = trimmed;
+    try {
+      if (trimmed.isEmpty) {
+        await _credentials.delete(_appScope, 'tmdb');
+      } else {
+        await _credentials.set(_appScope, 'tmdb', trimmed);
+      }
+    } catch (e) {
+      // Some desktop setups have no keystore backend. The key still works for
+      // this session; it simply will not survive a restart. Report loudly
+      // rather than crashing the settings screen.
+      AeroLog.instance.e('settings',
+          'Keystore unavailable — the TMDB key was not persisted: $e');
+    }
+  }
 
   bool get hasOnboarded => (_cache[_kOnboarded]?['v'] ?? false) as bool;
   Future<void> setOnboarded() => _write(_kOnboarded, {'v': true});
@@ -207,11 +263,14 @@ class SettingsRepository {
   bool get telemetryOptIn => (_cache[_kTelemetry]?['v'] ?? false) as bool;
   Future<void> setTelemetryOptIn(bool v) => _write(_kTelemetry, {'v': v});
 
-  /// Raw export for backup.
-  Map<String, Map<String, dynamic>> exportAll() => Map.of(_cache);
+  /// Raw export for backup — **secret-free** by construction.
+  Map<String, Map<String, dynamic>> exportAll() =>
+      Map.of(_cache)..remove(_kTmdbKey);
 
   Future<void> importAll(Map<String, dynamic> raw) async {
     for (final e in raw.entries) {
+      // Never let a backup file set a credential or a reserved key.
+      if (e.key == _kTmdbKey) continue;
       if (e.value is Map) {
         await _write(e.key, Map<String, dynamic>.from(e.value as Map));
       }

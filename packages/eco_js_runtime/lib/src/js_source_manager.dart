@@ -81,10 +81,20 @@ class JsSourceManager {
 
     return _booting.putIfAbsent(s.id, () async {
       try {
-        final code = await store.loadCode(ecosystem, s.id);
+        var code = await store.loadCode(ecosystem, s.id);
+        // Recover instead of giving up: a pruned cache row, a restored backup
+        // or an interrupted install must not brick an installed plugin.
         if (code == null || code.isEmpty) {
-          AeroLog.instance.w(ecosystem.id, 'No cached code for ${s.name}');
-          return null;
+          AeroLog.instance.i(
+              ecosystem.id, 'No cached code for ${s.name} — refetching');
+          final fetched = await fetchCode(s.url, expectedSha256: s.sha256);
+          if (fetched.isErr) {
+            AeroLog.instance.e(
+                ecosystem.id, 'Refetch failed: ${fetched.errorOrNull}');
+            return null;
+          }
+          code = fetched.valueOrNull!;
+          await store.saveCode(ecosystem, s.id, code);
         }
         // Re-verify the pin at every boot, not just at install time.
         final actual = JsPluginBundle.hashOf(code);

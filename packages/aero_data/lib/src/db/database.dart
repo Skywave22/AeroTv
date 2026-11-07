@@ -100,8 +100,26 @@ class AeroDatabase extends _$AeroDatabase {
         },
       );
 
-  /// Removes expired cache rows. Called on startup and periodically.
-  Future<int> pruneCache() =>
-      (delete(mediaCache)..where((t) => t.expiresAt.isSmallerThanValue(DateTime.now())))
-          .go();
+  /// Long-lived rows (plugin code is written with a ten-year TTL) keep a
+  /// forward `expiresAt`, so expiry alone never reclaims them. Anything that far
+  /// out survives this age cap: it is stale by construction.
+  static const cacheAgeCap = Duration(days: 45);
+
+  /// Removes expired cache rows, plus long-lived rows old enough that they can
+  /// only be abandoned plugin code or a mis-set TTL.
+  ///
+  /// Called on startup so the on-device database does not grow without bound.
+  Future<int> pruneCache() async {
+    final now = DateTime.now();
+    final expired = await (delete(mediaCache)
+          ..where((t) => t.expiresAt.isSmallerThanValue(now)))
+        .go();
+    // A row whose expiry is more than [cacheAgeCap] in the future was written
+    // with the "effectively permanent" TTL; those are the ones that leak.
+    final farFuture = now.add(cacheAgeCap);
+    final ancient = await (delete(mediaCache)
+          ..where((t) => t.expiresAt.isBiggerThanValue(farFuture)))
+        .go();
+    return expired + ancient;
+  }
 }

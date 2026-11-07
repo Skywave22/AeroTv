@@ -170,6 +170,7 @@ class NuvioAdapter implements EcosystemAdapter, RepositorySource {
       url: s.url,
       repoId: s.repoId,
       name: s.name,
+      version: s.version,
       extra: {'id': sourceId, 'name': s.name, 'version': s.version},
     ));
   }

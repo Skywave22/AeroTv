@@ -23,7 +23,7 @@ void main() {
     // Trigger onCreate so the default profile exists.
     await db.select(db.profiles).get();
     sources = SourceRepository(db);
-    settings = SettingsRepository(db);
+    settings = SettingsRepository(db, credentials: SecureCredentials.inMemory());
     await settings.load();
     library = LibraryRepository(db);
     history = HistoryRepository(db);
@@ -276,7 +276,8 @@ void main() {
       await settings.setTmdbApiKey('secret');
       await settings.setOnboarded();
 
-      final fresh = SettingsRepository(db);
+      // Re-use the same store: a fresh one is a different keystore.
+      final fresh = SettingsRepository(db, credentials: settings.credentials);
       await fresh.load();
       expect(fresh.player.subtitleSize, 1.4);
       expect(fresh.ranking.preferredQuality, Quality.uhd);
@@ -305,7 +306,7 @@ void main() {
       final db2 = AeroDatabase.memory();
       await db2.select(db2.profiles).get();
       final sources2 = SourceRepository(db2);
-      final settings2 = SettingsRepository(db2);
+      final settings2 = SettingsRepository(db2, credentials: settings.credentials);
       await settings2.load();
       final backup2 = BackupService(
         db: db2,

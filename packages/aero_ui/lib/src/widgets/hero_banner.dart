@@ -62,6 +62,21 @@ class _HeroBannerState extends State<HeroBanner> {
   }
 
   @override
+  void didUpdateWidget(covariant HeroBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A refreshed feed can shorten the list under a running timer; without
+    // this the next tick animates to a page that no longer exists.
+    if (oldWidget.items.length != widget.items.length ||
+        oldWidget.rotationSeconds != widget.rotationSeconds ||
+        oldWidget.autoplayEnabled != widget.autoplayEnabled) {
+      if (_index >= widget.items.length) {
+        _index = widget.items.isEmpty ? 0 : widget.items.length - 1;
+      }
+      _startTimer();
+    }
+  }
+
+  @override
   void dispose() {
     _timer?.cancel();
     _controller.dispose();

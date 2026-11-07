@@ -127,6 +127,12 @@ final adapterRegistryProvider = Provider<AdapterRegistry>((ref) {
   final sources = ref.watch(sourceRepoProvider);
   final cache = ref.watch(cacheRepoProvider);
 
+  // Nuvio scrapers have no metadata API at all: they take a TMDB id and a key.
+  // Watching the setting here means saving a new key in Settings rebuilds the
+  // registry, so scrapers get the new value instead of an empty string that
+  // was captured at first launch.
+  final tmdbApiKey = ref.watch(settingsRepoProvider).tmdbApiKey;
+
   registry.register(
     StremioAdapter(store: _StremioStoreBridge(sources), cache: cache),
   );
@@ -134,7 +140,7 @@ final adapterRegistryProvider = Provider<AdapterRegistry>((ref) {
   final jsStore = _JsStoreBridge(sources, cache);
   // JS ecosystems are registered but ship no plugins; the user adds their own.
   registry.register(VegaAdapter(store: jsStore));
-  registry.register(NuvioAdapter(store: jsStore));
+  registry.register(NuvioAdapter(store: jsStore, tmdbApiKey: tmdbApiKey));
   registry.register(SkyStreamAdapter(store: jsStore));
   registry.register(CloudStreamAdapter());
 

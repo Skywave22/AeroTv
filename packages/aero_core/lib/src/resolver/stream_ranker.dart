@@ -30,9 +30,14 @@ class StreamRanker {
     return true;
   }
 
-  /// Higher is better. Weights are tuned so quality dominates, then provider
-  /// preference, then language, then codec/HDR niceties, then latency.
-  int score(StreamLink s) {
+  /// Numeric score only. Kept for callers that just want to compare links.
+  int score(StreamLink s) => evaluate(s).score;
+
+  /// Higher is better, and the reasons are returned alongside the number so the
+  /// UI can explain **why** a source won. Weights are tuned so quality
+  /// dominates, then provider preference, then language, then codec/HDR
+  /// niceties, then latency.
+  ({int score, List<String> reasons}) evaluate(StreamLink s) {
     final reasons = <String>[];
     var total = 0;
 
@@ -139,7 +144,7 @@ class StreamRanker {
       reasons.add('adaptive +3');
     }
 
-    return total;
+    return (score: total, reasons: reasons);
   }
 
   /// Number of quality buckets between two qualities.
@@ -164,7 +169,8 @@ class StreamRanker {
     final out = <RankedStream>[];
     for (final s in links) {
       if (!passes(s)) continue;
-      out.add(RankedStream(link: s, score: score(s), reasons: _explain(s)));
+      final e = evaluate(s);
+      out.add(RankedStream(link: s, score: e.score, reasons: e.reasons));
     }
     out.sort((a, b) {
       final c = b.score.compareTo(a.score);
@@ -179,16 +185,6 @@ class StreamRanker {
       return a.link.sourceName.compareTo(b.link.sourceName);
     });
     return out;
-  }
-
-  List<String> _explain(StreamLink s) {
-    // Re-run scoring but capture reasons via a lightweight second pass.
-    final probe = <String>[];
-    if (s.quality != Quality.unknown) probe.add(s.quality.label);
-    if (s.language != null) probe.add(s.language!);
-    if (s.sizeLabel != null) probe.add(s.sizeLabel!);
-    if (s.debrid) probe.add('debrid');
-    return probe;
   }
 
   /// Best link for auto-play, or null when nothing clears the guard rail.
